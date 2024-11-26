@@ -2,8 +2,6 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const Files = require('./Files');
-const Subscription = require('./Subscription');
 
 const schema = new mongoose.Schema({
     name: {
@@ -17,20 +15,22 @@ const schema = new mongoose.Schema({
         validate: [validator.isEmail, 'Please provide a valid email address.'],
         unique: true
     },
-    free_trial: {
-        type: Date,
-        default: function () {
-            const threeDaysFromNow = new Date();
-            threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 1);
-            return threeDaysFromNow;
-        }
-    },
-    storageLimit: { type: Number, default: 0},
-    plan_end_on: {type: Date},
-    streamLimit: { type: Number, default: 0},
-    allowed_resolutions: { type: [String], default: ['1080'] }, 
     avatar: {type: String},
-    uploaded_content: { type : String},
+    status: {
+        type: String,
+        default: "active",
+    },
+    corporateID: {
+        type: String,
+        required: [true, 'Corporate ID can not be empty.'],
+        unique: true
+    },
+    role: {
+        type: String,
+        default:'1'
+    },
+    // 0-admin, 1-staff, 2-customer
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     password: {
         type: String,
         required: [true, 'Please enter your password.'],
@@ -46,63 +46,22 @@ const schema = new mongoose.Schema({
             message: "Passwords did't matched."
         }
     },
-    country : { 
-        type : String
-    },
-    country_code : { 
-        type : String
-    },
-    currency : {
-        type : String
-    },
-
-    status: {
-        type: String,
-        default: "active",
-    },
-
-    role: {
-        type: String,
-        default:'0'
-    },
     createdAt: {
         type: Date,
         default: Date.now()
     },
-    mailVerifiedAt: {
-        type: Date,
-        default: null
-    },
     changedPasswordAt: Date,
     passwordResetToken: String,
     resetTokenExpire: Date,
-    mailVerificationToken: String,
-    mailTokenExpire: Date,
     deletedAt: {
         type: Date
     },
-}, {
+},{
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
 
-schema.virtual('trialStatus').get(function () {
-    const currentDate = new Date();
-    if (this.free_trial > currentDate) {
-        return 'active';
-    } else {
-        return 'ended';
-    }
-}); 
  
-schema.virtual('planStatus').get(function () {
-    const currentDate = new Date();
-    if (this.plan && (this.plan_end_on > currentDate)) {
-        return 'active';
-    } else {
-        return 'ended';
-    }
-});
 
 schema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
@@ -124,29 +83,6 @@ schema.methods.createPasswordResetToken = async function () {
     this.passwordResetToken = crypto.createHash('sha256').update(token).digest('hex');
     this.resetTokenExpire = Date.now() + 10 * 60 * 1000;
     return token;
-}
-
-schema.methods.createMailVerificationToken = async function () {
-    const token = crypto.randomBytes(32).toString('hex');
-    this.mailVerificationToken = crypto.createHash('sha256').update(token).digest('hex');
-    this.mailTokenExpire = Date.now() + 10 * 60 * 1000;
-    return token;
-}
-
- 
-schema.methods.getUploadedContentSize = async function () {
-    try {
-        const id = this._id;
-        const files = await Files.find({ user: id, deletedAt: { $in: [null, ''] } });
-        const totalSize = files.reduce((acc, file) => acc + parseInt(file.size || 0), 0);
-        const totalSizeInMB = totalSize
-        this.uploaded_content = totalSizeInMB;
-        return totalSizeInMB;
-    } catch (error) {
-        console.error('Error calculating uploaded content size:', error);
-        this.uploaded_content = 0;
-        return 0; 
-    }
 }
 
 const User = mongoose.model('users', schema);

@@ -23,7 +23,6 @@ app.use(globalErrorHandler);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json({limit:'2000mb'}));
  
-app.use("/admin", require('./routes/adminRoutes'));
 app.use("/user", require('./routes/authRoutes'));
 app.use("/user", require('./routes/userRoutes'));
 
