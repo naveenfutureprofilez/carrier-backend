@@ -58,14 +58,15 @@ const validateToken = catchAsync ( async (req, res, next) => {
   
 
 const signup = catchAsync(async (req, res, next) => {
-  const { name, username, email, avatar, password, confirmPassword } = req.body;
-  const isEmailUsed  =  await User.findOne({email : email});
+  const { role, name, email, avatar, password } = req.body;
+  const isEmailUsed = await User.findOne({email : email});
   if(isEmailUsed){
     res.json({
       status : false,
       message : "Your given email address is already used."
     });
   }
+
   let corporateID;
   let isUnique = false;
   while (!isUnique) {
@@ -75,6 +76,7 @@ const signup = catchAsync(async (req, res, next) => {
       isUnique = true;
     }
   }
+
   await User.syncIndexes();
   User.create({
     name: name,
@@ -83,7 +85,8 @@ const signup = catchAsync(async (req, res, next) => {
     corporateID: corporateID,
     created_by:req.user._id,
     password: password,
-    confirmPassword: confirmPassword,
+    role: role,
+    confirmPassword: password,
   }).then(result => {
     res.send({
       status: true,
@@ -98,17 +101,19 @@ const signup = catchAsync(async (req, res, next) => {
 
 
 const login = catchAsync ( async (req, res, next) => { 
-   const { email, password, admin, corporateID } = req.body;
+   const { email, password, corporateID } = req.body;
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
    const user = await User.findOne({email}).select('+password');
-   if(admin && user && user.role !== '1'){
+   
+   if(!user){
     res.status(200).json({
       status : false,
-      message:"Invalid credentials.", 
+      message:"Invalid Details",
      });
    }
+
    if(user && user.status === 'inactive'){
     res.status(200).json({
       status : false,
