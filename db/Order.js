@@ -1,3 +1,4 @@
+const { default: mongoose } = require('mongoose');
 const mongo = require('mongoose'); 
 const slugify = require('slugify'); 
 const schema = new mongo.Schema({
@@ -5,9 +6,10 @@ const schema = new mongo.Schema({
         type:String,
         require:true,
     },
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+    carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+    added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     order_no:  {
-        type:String,
+        type:Number,
         unique:true,
     },
 
@@ -19,12 +21,20 @@ const schema = new mongo.Schema({
 
     // Pickup Location
     pickup_location: String,
-    reference_no:String,
+    pickup_reference_no:String,
     pickup_date:{
         type: Date,
     },
-    is_appointment: {
-        type:String
+    pickup_is_appointment: {
+        type:Number
+    },
+    delivery_location: String,
+    delivery_reference_no:String,
+    delivery_date: {
+        type: Date,
+    },
+    delivery_is_appointment: {
+        type:Number
     },
     revenue_items: [],
     createdAt: {
@@ -32,18 +42,6 @@ const schema = new mongo.Schema({
         default: Date.now()     
     },
 }); 
-
-// Will runs ony when .save or .create trigger not for insertMany
-schema.pre('save',function(next){
-    this.slugtest= slugify(this.name, {lower:true})
-    next();
-});
-
-// To Not Find All Document Matching this Condition
-// schema.pre(/^find/,function(next){
-//     this.find({year : {$ne:'2023'}})
-//     next();
-// });
-
+ 
 
 module.exports = mongo.model('orders', schema);

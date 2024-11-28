@@ -7,8 +7,6 @@ const SendEmail = require("../utils/Email");
 const crypto = require("crypto");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
-const Inquiry = require("../db/Inquiry");
-const { number } = require("joi");
 const SECRET_ACCESS = process.env && process.env.SECRET_ACCESS || "MYSECRET";
 const signToken = async (id) => {
   const token = jwt.sign(
@@ -57,7 +55,6 @@ const validateToken = catchAsync ( async (req, res, next) => {
   }
 });
   
-
 const signup = catchAsync(async (req, res, next) => {
   const { role, name, email, avatar, password, generateAutoPassword } = req.body;
   if(req.user.is_admin !== 1){
@@ -100,7 +97,6 @@ const signup = catchAsync(async (req, res, next) => {
     role: role,
     confirmPassword: generatedPassword,
   }).then(result => {
-    // delete password field from response
     result.password = undefined;
     res.send({
       status: true,
@@ -119,10 +115,6 @@ const signup = catchAsync(async (req, res, next) => {
     logger(err);
   });
 });
-
-
-
-
 
 const login = catchAsync ( async (req, res, next) => { 
    const { email, password, corporateID } = req.body;
@@ -164,10 +156,6 @@ const login = catchAsync ( async (req, res, next) => {
     token
    });
 });
-
-
-
-
 
 const profile = catchAsync ( async (req, res) => {
   if(req.user){

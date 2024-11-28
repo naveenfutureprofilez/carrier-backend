@@ -11,10 +11,8 @@ exports.carriers_listing = catchAsync(async (req, res) => {
       }),
       req.query
     ).sort();
-
    const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
    const data = await query;
-
    res.json({
      status: true,
      carriers: data,
