@@ -16,7 +16,7 @@ const schema = new mongo.Schema({
     equipment:String,
     weight:{type:Number},
     weight_unit:{type:String},
-    
+
     // Pickup Location
     pickup_location: String,
     reference_no:String,
@@ -46,4 +46,4 @@ schema.pre('save',function(next){
 // });
 
 
-module.exports = mongo.model('products', schema);
+module.exports = mongo.model('orders', schema);

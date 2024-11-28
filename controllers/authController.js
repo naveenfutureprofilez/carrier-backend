@@ -69,7 +69,7 @@ const signup = catchAsync(async (req, res, next) => {
   let corporateID;
   let isUnique = false;
   while (!isUnique) {
-    corporateID = `CCID${Math.floor(100000 + Math.random() * 900000)}`; // Generates a random 6-digit number
+    corporateID = `CCID${Math.floor(100000 + Math.random() * 900000)}`;
     const existingUser = await User.findOne({ corporateID });
     if (!existingUser) {
       isUnique = true;
