@@ -32,7 +32,7 @@ const schema = new mongoose.Schema({
     // 1-carrier, 2-staff
     is_admin: {
         type: Number,
-        default:1
+        default:0
     },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     password: {
