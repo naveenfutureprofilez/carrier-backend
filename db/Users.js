@@ -26,26 +26,30 @@ const schema = new mongoose.Schema({
         unique: true
     },
     role: {
-        type: String,
-        default:'1'
+        type: Number,
+        default:1
     },
-    // 0-admin, 1-staff, 2-customer
+    // 1-carrier, 2-staff
+    is_admin: {
+        type: Number,
+        default:0
+    },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     password: {
         type: String,
         required: [true, 'Please enter your password.'],
         select: false
     },
-    confirmPassword: {
-        type: String,
-        required: true,
-        required: [true, 'Please re-enter your password.'],
-        select: false,
-        validate: {
-            validator: function (val) { return val === this.password },
-            message: "Passwords did't matched."
-        }
-    },
+    // confirmPassword: {
+    //     type: String,
+    //     required: true,
+    //     required: [true, 'Please re-enter your password.'],
+    //     select: false,
+    //     validate: {
+    //         validator: function (val) { return val === this.password },
+    //         message: "Passwords did't matched."
+    //     }
+    // },
     createdAt: {
         type: Date,
         default: Date.now()

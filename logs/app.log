@@ -3646,3 +3646,5 @@
 
 2024-11-06T10:42:33.142Z [INFO]:"FFmpeg process exited with code null"
 
+2024-11-27T16:01:12.535Z [INFO]:{"errors":{"confirmPassword":{"name":"ValidatorError","message":"Please re-enter your password.","properties":{"message":"Please re-enter your password.","type":"required","path":"confirmPassword"},"kind":"required","path":"confirmPassword"}},"_message":"users validation failed","name":"ValidationError","message":"users validation failed: confirmPassword: Please re-enter your password."}
+

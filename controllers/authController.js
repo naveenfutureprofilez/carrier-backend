@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
 const Inquiry = require("../db/Inquiry");
+const { number } = require("joi");
 const SECRET_ACCESS = process.env && process.env.SECRET_ACCESS || "MYSECRET";
 const signToken = async (id) => {
   const token = jwt.sign(
@@ -58,14 +59,26 @@ const validateToken = catchAsync ( async (req, res, next) => {
   
 
 const signup = catchAsync(async (req, res, next) => {
-  const { name, username, email, avatar, password, confirmPassword } = req.body;
-  const isEmailUsed  =  await User.findOne({email : email});
+  const { role, name, email, avatar, password, generateAutoPassword } = req.body;
+  if(req.user.is_admin !== 1){
+    return res.json({
+      status : false,
+      message : "You are not authorized to create user."
+    });
+  }
+
+  const isEmailUsed = await User.findOne({email : email});
+  let generatedPassword = password || '';
+  if(generateAutoPassword === 1){
+    generatedPassword = crypto.randomBytes(10).toString('hex');
+  }
   if(isEmailUsed){
     res.json({
       status : false,
       message : "Your given email address is already used."
     });
   }
+
   let corporateID;
   let isUnique = false;
   while (!isUnique) {
@@ -75,6 +88,7 @@ const signup = catchAsync(async (req, res, next) => {
       isUnique = true;
     }
   }
+
   await User.syncIndexes();
   User.create({
     name: name,
@@ -82,11 +96,21 @@ const signup = catchAsync(async (req, res, next) => {
     avatar: avatar || '',
     corporateID: corporateID,
     created_by:req.user._id,
-    password: password,
-    confirmPassword: confirmPassword,
+    password: generatedPassword,
+    role: role,
+    confirmPassword: generatedPassword,
   }).then(result => {
+    // delete password field from response
+    result.password = undefined;
     res.send({
       status: true,
+      generatedUser : {
+        name: name,
+        generatedPassword: generatedPassword,
+        email: email,
+        role : role,
+        corporateID: corporateID
+      },
       user: result,
       message: "User has been created.",
     });
@@ -97,18 +121,23 @@ const signup = catchAsync(async (req, res, next) => {
 });
 
 
+
+
+
 const login = catchAsync ( async (req, res, next) => { 
-   const { email, password, admin, corporateID } = req.body;
+   const { email, password, corporateID } = req.body;
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
    const user = await User.findOne({email}).select('+password');
-   if(admin && user && user.role !== '1'){
+   
+   if(!user){
     res.status(200).json({
       status : false,
-      message:"Invalid credentials.", 
+      message:"Invalid Details",
      });
    }
+
    if(user && user.status === 'inactive'){
     res.status(200).json({
       status : false,
@@ -135,6 +164,10 @@ const login = catchAsync ( async (req, res, next) => {
     token
    });
 });
+
+
+
+
 
 const profile = catchAsync ( async (req, res) => {
   if(req.user){
