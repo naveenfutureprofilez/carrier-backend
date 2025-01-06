@@ -6,12 +6,22 @@ const schema = new mongo.Schema({
         type:String,
         require:true,
     },
-    carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+   
     added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     order_no:  {
         type:Number,
         unique:true,
     },
+    order_amount:  {
+        type:Number,
+    },
+    order_amount_currency:  {
+        type:String,
+    },
+
+    // carrier information 
+    carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'carrier'},
+    driver: { type: mongoose.Schema.Types.ObjectId, ref: 'driver'},
 
     // Shipping details
     commudity:String,
@@ -21,21 +31,16 @@ const schema = new mongo.Schema({
 
     // Pickup Location
     pickup_location: String,
+    pickup_phone: String,
     pickup_reference_no:String,
-    pickup_date:{
-        type: Date,
-    },
-    pickup_is_appointment: {
-        type:Number
-    },
+    pickup_date:{type: Date},
+    pickup_is_appointment: { type:Number },
+
+    // Delivery Location
     delivery_location: String,
     delivery_reference_no:String,
-    delivery_date: {
-        type: Date,
-    },
-    delivery_is_appointment: {
-        type:Number
-    },
+    delivery_date: { type: Date},
+    delivery_is_appointment: {type:Number},
     revenue_items: [],
     createdAt: {
         type: Date,
