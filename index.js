@@ -6,9 +6,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config()
 const globalErrorHandler = require("./middlewares/gobalErrorHandler");
 const errorHandler = require("./middlewares/errorHandler");
-const { validateToken } = require('./controllers/authController');
 require('./db/config');
-mongoose.set('bufferMaxBytes', Infinity);
 
 const corsOptions = {
   origin: '*',
@@ -36,7 +34,6 @@ app.get('/', (req, res) => {
     status: 200
   });
 });
-
 
 
 app.all('*', (req, res, next) => {
