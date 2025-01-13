@@ -5,7 +5,6 @@ const schema = new mongo.Schema({
         type:String,
         require:true,
     },
-
     order_no:  {
         type:Number,
         unique:true,
@@ -59,8 +58,7 @@ const schema = new mongo.Schema({
         min:0
     },
     revenue_items: [],
-    
-    added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     createdAt: {
         type: Date,
         default: Date.now()     

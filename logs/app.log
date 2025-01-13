@@ -3650,3 +3650,5 @@
 
 2025-01-13T05:23:11.638Z [INFO]:{"index":0,"code":11000,"keyPattern":{"email":1},"keyValue":{"email":"admin@gmail.com"}}
 
+2025-01-13T12:18:09.834Z [INFO]:{"errors":{"name":{"name":"ValidatorError","message":"Please enter Carrier Name.","properties":{"message":"Please enter Carrier Name.","type":"required","path":"name"},"kind":"required","path":"name"},"phone":{"name":"ValidatorError","message":"Please enter carrier contact number.","properties":{"message":"Please enter carrier contact number.","type":"required","path":"phone"},"kind":"required","path":"phone"}},"_message":"carriers validation failed","name":"ValidationError","message":"carriers validation failed: name: Please enter Carrier Name., phone: Please enter carrier contact number."}
+
