@@ -8,6 +8,7 @@ const globalErrorHandler = require("./middlewares/gobalErrorHandler");
 const errorHandler = require("./middlewares/errorHandler");
 const { validateToken } = require('./controllers/authController');
 require('./db/config');
+mongoose.set('bufferMaxBytes', Infinity);
 
 const corsOptions = {
   origin: 'https://carrier-chi.vercel.app',
