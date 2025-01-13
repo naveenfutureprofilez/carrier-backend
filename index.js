@@ -6,8 +6,11 @@ const bodyParser = require('body-parser');
 require('dotenv').config()
 const globalErrorHandler = require("./middlewares/gobalErrorHandler");
 const errorHandler = require("./middlewares/errorHandler");
+const mongoose = require('mongoose');
 require('./db/config');
 
+
+mongoose.set('bufferMaxBytes', Infinity)
 const corsOptions = {
   origin: '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
