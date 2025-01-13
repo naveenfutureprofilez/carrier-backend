@@ -29,7 +29,6 @@ const schema = new mongoose.Schema({
         type: Number,
         default:1
     },
-    // 1-carrier, 2-staff
     is_admin: {
         type: Number,
         default:0

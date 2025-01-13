@@ -19,14 +19,14 @@ app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(errorHandler);
 app.use(globalErrorHandler);
-
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json({limit:'2000mb'}));
- 
 app.use("/user", require('./routes/authRoutes'));
 app.use("/user", require('./routes/userRoutes'));
 app.use("", require('./routes/carrierRoutes'));
 app.use("", require('./routes/orderRoutes'));
+app.use("", require('./routes/driverRoutes'));
+app.use("", require('./routes/customerRoutes'));
 
 app.use(express.json());
 app.get('/', (req, res) => {

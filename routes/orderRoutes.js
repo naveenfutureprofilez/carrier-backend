@@ -3,6 +3,7 @@ const router = express.Router();
 const { validateToken } = require('../controllers/authController');
 const orderController = require('../controllers/orderController');
 
-router.route('/create/order').post(validateToken, orderController.create_order);
+router.route('/order/add').post(validateToken, orderController.create_order);
+router.route('/order/listings').get(validateToken, orderController.create_order);
 
 module.exports = router;

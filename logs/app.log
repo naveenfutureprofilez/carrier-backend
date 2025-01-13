@@ -3648,3 +3648,5 @@
 
 2024-11-27T16:01:12.535Z [INFO]:{"errors":{"confirmPassword":{"name":"ValidatorError","message":"Please re-enter your password.","properties":{"message":"Please re-enter your password.","type":"required","path":"confirmPassword"},"kind":"required","path":"confirmPassword"}},"_message":"users validation failed","name":"ValidationError","message":"users validation failed: confirmPassword: Please re-enter your password."}
 
+2025-01-13T05:23:11.638Z [INFO]:{"index":0,"code":11000,"keyPattern":{"email":1},"keyValue":{"email":"admin@gmail.com"}}
+

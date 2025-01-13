@@ -3,32 +3,32 @@ const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 const APIFeatures  = require("../utils/APIFeatures");
 const Carrier = require("../db/Carrier");
+const Customer = require("../db/Customer");
 
 
-exports.addCarrier = catchAsync(async (req, res, next) => {
-  const { name, phone, email, location } = req.body;
-  let carrierID;
+exports.addCustomer = catchAsync(async (req, res, next) => {
+  const { name, phone, email } = req.body;
+  let customerID;
   let isUnique = false;
   while (!isUnique) {
-     carrierID = `CR_ID${Math.floor(100000 + Math.random() * 900000)}`;
-     const existingUser = await Carrier.findOne({ carrierID });
+     customerID = `CT_ID${Math.floor(100000 + Math.random() * 900000)}`;
+     const existingUser = await Customer.findOne({ customerID });
      if (!existingUser) {
         isUnique = true;
      }
   }
- await Carrier.syncIndexes();
- Carrier.create({
+ await Customer.syncIndexes();
+ Customer.create({
    name: name,
    email: email,
-   location: location,
    phone: phone,
-   carrierID: carrierID,
+   customerID: customerID,
    created_by:req.user._id,
  }).then(result => {
    res.send({
      status: true,
-     driver :result,
-     message: "Carrier has been added.",
+     customers :result,
+     message: "Customer has been added.",
    });
  }).catch(err => {
    JSONerror(res, err, next);
@@ -36,9 +36,9 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
  });
 });
 
-exports.carriers_listing = catchAsync(async (req, res) => {
+exports.customers_listing = catchAsync(async (req, res) => {
     const Query = new APIFeatures(
-      Carrier.find({
+      Customer.find({
         deletedAt : null || ''
       }).populate('created_by'),
       req.query
@@ -47,9 +47,9 @@ exports.carriers_listing = catchAsync(async (req, res) => {
    const data = await query;
    res.json({
      status: true,
-     carriers: data,
+     customers: data,
      page : page,
      totalPages : totalPages,
-     message: data.length ? undefined : "No files found"
+     message: data.length ? undefined : "No customers found"
    });
 });

@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
 const SECRET_ACCESS = process.env && process.env.SECRET_ACCESS || "MYSECRET";
+
 const signToken = async (id) => {
   const token = jwt.sign(
     {id}, 
@@ -57,7 +58,7 @@ const validateToken = catchAsync ( async (req, res, next) => {
   
 const signup = catchAsync(async (req, res, next) => {
   const { role, name, email, avatar, password, generateAutoPassword } = req.body;
-  if(req.user.is_admin !== 1){
+  if(req.user && req.user.is_admin !== 1){
     return res.json({
       status : false,
       message : "You are not authorized to create user."
@@ -92,7 +93,7 @@ const signup = catchAsync(async (req, res, next) => {
     email: email,
     avatar: avatar || '',
     corporateID: corporateID,
-    created_by:req.user._id,
+    created_by:req.user && req.user._id,
     password: generatedPassword,
     role: role,
     confirmPassword: generatedPassword,
@@ -118,6 +119,7 @@ const signup = catchAsync(async (req, res, next) => {
 
 const login = catchAsync ( async (req, res, next) => { 
    const { email, password, corporateID } = req.body;
+   console.log("req.body",req.body);
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
@@ -140,9 +142,10 @@ const login = catchAsync ( async (req, res, next) => {
    if((user.corporateID !== corporateID) || !user || !(await user.checkPassword(password, user.password))){
     res.status(200).json({
       status : false, 
-      message:"Email, Corporate ID, or password is invalid !!",
+      message:"Details are invalid.",
      });   
    }
+
    const token = await signToken(user._id);
    res.cookie('jwt', token, {
     expires:new Date(Date.now() + 30*24*60*60*1000),
@@ -170,7 +173,6 @@ const profile = catchAsync ( async (req, res) => {
     });
   }
 });
-
 
 const forgotPassword = catchAsync ( async (req, res, next) => {
   const user = await User.findOne({email:req.body.email});
@@ -312,7 +314,6 @@ img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolatio
     )
   }
 });
-
 
 const resetpassword = catchAsync ( async (req, res, next) => {
   if(req.body.password !== req.body.confirmPassword){ 
