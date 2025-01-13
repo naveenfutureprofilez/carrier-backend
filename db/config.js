@@ -11,9 +11,9 @@ mongoose.connect( `mongodb+srv://naveentehrpariya:naveentehrpariya21081998@clust
     useNewUrlParser: true,   
     autoIndex: false, // Don't build indexes 
     maxPoolSize: 10, // Maintain up to 10 socket connections
-    serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-    family: 4
+    family: 4,
+    serverSelectionTimeoutMS: 15000, // Increase to 15 seconds
+    socketTimeoutMS: 60000 // Increase to 15 seconds
  }).then(() => {
    console.log('MongoDB connected successfully');
  }).catch((err) => {
