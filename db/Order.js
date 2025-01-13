@@ -5,18 +5,16 @@ const schema = new mongo.Schema({
         type:String,
         require:true,
     },
-    added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+
     order_no:  {
         type:Number,
         unique:true,
         min: 0,
     },
-    
-    // Payment status
-    payment_status :{
-        type:String,
-        default:"pending",
-    },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'customers'},
+    carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'carriers'},
+    driver: { type: mongoose.Schema.Types.ObjectId, ref: 'drivers'},
+
     order_amount:  {
         type:Number,
         min: 0,
@@ -24,11 +22,13 @@ const schema = new mongo.Schema({
     order_amount_currency:  {
         type:String,
     },
+   
 
-    // carrier information 
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'customers'},
-    carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'carriers'},
-    driver: { type: mongoose.Schema.Types.ObjectId, ref: 'drivers'},
+    // Payment status
+    payment_status :{
+        type:String,
+        default:"pending",
+    },
 
     // Shipping details
     commudity:String,
@@ -51,6 +51,7 @@ const schema = new mongo.Schema({
 
     // Delivery Location
     delivery_location: String,
+    delivery_phone: String,
     delivery_reference_no:String,
     delivery_date: { type: Date},
     delivery_is_appointment: {
@@ -58,9 +59,8 @@ const schema = new mongo.Schema({
         min:0
     },
     revenue_items: [],
-
     
-
+    added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     createdAt: {
         type: Date,
         default: Date.now()     
