@@ -6,8 +6,8 @@ mongoose.set('strictQuery', true);
   
 
 
-mongoose.connect( `mongodb+srv://naveenfp:naveenfp@cluster0.5c8ne.mongodb.net/carrier`, {
-// // mongoose.connect(process.env.DB_URL_OFFICE, {
+// mongoose.connect( `mongodb+srv://naveenfp:naveenfp@cluster0.5c8ne.mongodb.net/carrier`, {
+mongoose.connect(process.env.DB_URL_OFFICE, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
     autoIndex: false, // Don't build indexes 
