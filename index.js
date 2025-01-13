@@ -10,7 +10,7 @@ const { validateToken } = require('./controllers/authController');
 require('./db/config');
 
 const corsOptions = {
-  origin: '*',
+  origin: 'https://carrier-chi.vercel.app',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
 };
