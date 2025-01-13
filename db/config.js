@@ -4,6 +4,8 @@ dotenv.config({path:'config.env'});
 const mongoose = require('mongoose');
 mongoose.set('strictQuery', true);
   
+
+
 mongoose.connect( `mongodb+srv://naveenfp:naveenfp@cluster0.5c8ne.mongodb.net/carrier`, {
 // mongoose.connect(process.env.DB_URL_OFFICE, {
     useNewUrlParser: true,   
