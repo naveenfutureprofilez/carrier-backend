@@ -56,8 +56,9 @@ const validateToken = catchAsync ( async (req, res, next) => {
   }
 });
   
+
 const signup = catchAsync(async (req, res, next) => {
-  const { role, name, email, avatar, password, generateAutoPassword } = req.body;
+  const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
   if(req.user && req.user.is_admin !== 1){
     return res.json({
       status : false,
@@ -70,6 +71,7 @@ const signup = catchAsync(async (req, res, next) => {
   if(generateAutoPassword === 1){
     generatedPassword = crypto.randomBytes(10).toString('hex');
   }
+
   if(isEmailUsed){
     res.json({
       status : false,
@@ -90,7 +92,8 @@ const signup = catchAsync(async (req, res, next) => {
   await User.syncIndexes();
   User.create({
     name: name,
-    email: email,
+    email: email, 
+    staff_commision : role === 1 ? staff_commision : null,
     avatar: avatar || '',
     corporateID: corporateID,
     created_by:req.user && req.user._id,

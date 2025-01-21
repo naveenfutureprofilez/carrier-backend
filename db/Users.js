@@ -20,14 +20,17 @@ const schema = new mongoose.Schema({
         type: String,
         default: "active",
     },
-    corporateID: {
+    staff_commision: {
+        type: Number,
+    },
+    corporateID: { 
         type: String,
         required: [true, 'Corporate ID can not be empty.'],
         unique: true
     },
     role: {
         type: Number,
-        default:1
+        default:1 // 1 Staff - 2 Accounting
     },
     is_admin: {
         type: Number,
