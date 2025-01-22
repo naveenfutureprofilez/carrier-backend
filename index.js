@@ -45,5 +45,5 @@ app.all('*', (req, res, next) => {
   });
 });
 
-const port = process.env.PORT;
+const port = process.env.PORT || '8080';
 app.listen(port, () => { console.log(`On PORT ${port} SERVER RUNNINGGGGG.....`) });
