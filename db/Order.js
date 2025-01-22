@@ -18,10 +18,6 @@ const schema = new mongo.Schema({
     carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'carriers'},
     carrier_amount:  {type:Number},
     carrier_amount_currency:  {type:String},
-    gross_amount: {
-        type: Number,
-    },
-
 
     // Order Payment status
     payment_status :{
@@ -71,18 +67,35 @@ const schema = new mongo.Schema({
     deletedAt: {
         type: Date,
     },
+},{
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 }); 
 
-schema.virtual('profit').get(function () {
-    const currentDate = new Date();
-    if (this.plan && (this.plan_end_on > currentDate)) {
-        return 'active';
-    } else {
-        return 'ended';
-    }
+
+schema.virtual('gross_amount').get(function () {
+    const items = this.revenue_items || [];
+    let grossAmount = 0;
+    items.forEach(item => {
+        grossAmount += Number(item.value);
+    });
+    return grossAmount;
 });
 
 
+schema.virtual('profit').get(function () {
+    const items = this.revenue_items || [];
+    let grossAmount = 0;
+    items.forEach(item => {
+        grossAmount += Number(item.value);
+    });
+    const commission = grossAmount * (this.created_by.staff_commision /100);
+    const actualProfit = grossAmount - commission - this.carrier_amount;
+    return actualProfit;
+});
+
+
+ 
 
 module.exports = mongo.model('orders', schema);
 
@@ -120,8 +133,7 @@ const dummy_shipping_details = [
        delivery_date: "2025-03-22",
        delivery_is_appointment: 0,
     },
- ]
-
+]
 
 //  DUMMY REVNENUE ITEMS
 const dummy_revenue_items =[

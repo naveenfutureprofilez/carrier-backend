@@ -56,7 +56,6 @@ const validateToken = catchAsync ( async (req, res, next) => {
   }
 });
   
-
 const signup = catchAsync(async (req, res, next) => {
   const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
   if(req.user && req.user.is_admin !== 1){
@@ -173,6 +172,21 @@ const profile = catchAsync ( async (req, res) => {
     res.status(200).json({
      status:false,
      message:"Unauthorized",
+    });
+  }
+});
+
+const employeesLisiting = catchAsync ( async (req, res) => {
+  const lists = await User.find({is_admin: {$ne:1}});
+  if(lists){
+     res.status(200).json({
+      status:true,
+      lists : lists,
+    });
+  } else {
+    res.status(200).json({
+     status:false,
+     message: []
     });
   }
 });
@@ -347,4 +361,4 @@ const resetpassword = catchAsync ( async (req, res, next) => {
   }); 
 });
 
-module.exports = {  signup, login, validateToken, profile, forgotPassword, resetpassword };
+module.exports = {  employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };

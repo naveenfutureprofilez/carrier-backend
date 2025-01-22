@@ -26,7 +26,7 @@ exports.create_order = catchAsync(async (req, res) => {
    const order = await Order.create({
       company_name,
       customer : customer,
-      added_by : req.user._id,
+      created_by : req.user._id,
       customer_order_no : parseInt(customer_order_no),
       shipping_details,
       carrier,
@@ -72,4 +72,23 @@ exports.order_listing = catchAsync(async (req, res) => {
     totalPages : totalPages,
     message: data.length ? undefined : "No files found"
   });
+});
+
+exports.order_listing_account = catchAsync(async (req, res) => {
+   const Query = new APIFeatures(
+     Order.find({
+       deletedAt : null || ''
+     }).populate(['created_by', 'customer', 'carrier']),
+     req.query
+   ).sort();
+
+   const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
+   const data = await query;
+   res.json({
+      status: true,
+      orders: data,
+      page : page,
+      totalPages : totalPages,
+      message: data.length ? undefined : "No files found"
+   });
 });
