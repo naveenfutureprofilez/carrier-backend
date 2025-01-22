@@ -26,7 +26,6 @@ app.use("/user", require('./routes/authRoutes'));
 app.use("/user", require('./routes/userRoutes'));
 app.use("", require('./routes/carrierRoutes'));
 app.use("", require('./routes/orderRoutes'));
-app.use("", require('./routes/driverRoutes'));
 app.use("", require('./routes/customerRoutes'));
 
 app.use(express.json());
