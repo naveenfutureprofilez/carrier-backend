@@ -7,6 +7,6 @@ router.route('/carriers/listings').get(validateToken, carrierController.carriers
 router.route('/carriers/add').post(validateToken, carrierController.addCarrier);
 router.route('/carriers/remove/:id').get(validateToken, carrierController.deleteCarrier);
 router.route('/carriers/update/:id').post(validateToken, carrierController.updateCarrier);
-router.route('/distance').post(carrierController.getDistance);
+router.route('/getdistance').post(carrierController.getDistance);
 
 module.exports = router;
