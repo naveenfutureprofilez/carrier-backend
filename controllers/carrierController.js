@@ -3,6 +3,7 @@ const APIFeatures  = require("../utils/APIFeatures");
 const Carrier = require("../db/Carrier");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
+const axios = require("axios");
 
 exports.addCarrier = catchAsync(async (req, res, next) => {
   const { name, phone, email, location } = req.body;
@@ -121,3 +122,28 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
     });
   }
 });
+
+exports.getDistance = async (req, res) => {
+  const { start, end, CurrentLocation } = req.body;
+  console.log("process.env.GOOGLE_API_KEY",process.env.GOOGLE_API_KEY);
+  try {
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start}&destination=${end}&key=${process.env.GOOGLE_API_KEY}`
+      await axios.get(url).then(response => {
+          res.json({
+              success: true,
+              message: "Succees",
+              response: response
+              // data: response?.data?.routes[0]?.legs.distance.value
+          });
+      }).catch(error => {
+          res.status(400).json({
+              success: false,
+              error : error,
+              message: 'Failed to fetch directions from Google Maps API',
+          });
+      });
+  } catch (error) {
+      console.error('Error fetching directions:', error);
+      res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
