@@ -52,9 +52,15 @@ const schema = new mongoose.Schema({
     //         message: "Passwords did't matched."
     //     }
     // },
+
+    // additonal fields
+    phone: String,
+    country: String,
+    address: String,
+
     createdAt: {
-        type: Date,
-        default: Date.now()
+    type: Date,
+    default: Date.now()
     },
     changedPasswordAt: Date,
     passwordResetToken: String,
@@ -62,6 +68,7 @@ const schema = new mongoose.Schema({
     deletedAt: {
         type: Date
     },
+
 },{
     toJSON: { virtuals: true },
     toObject: { virtuals: true }

@@ -97,6 +97,9 @@ const signup = catchAsync(async (req, res, next) => {
     corporateID: corporateID,
     created_by:req.user && req.user._id,
     password: generatedPassword,
+    country: req.body.country,
+    phone: req.body.phone,
+    address: req.body.address,
     role: role,
     confirmPassword: generatedPassword,
   }).then(result => {
