@@ -12,11 +12,12 @@ async function connectDB() {
         const db = await mongoose.connect(process.env.DB_URL_OFFICE, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            bufferCommands: false, // Ensure no queries run before connection
+            bufferCommands: false,
             autoIndex: false,
             maxPoolSize: 10,
-            serverSelectionTimeoutMS: 30000,
-            socketTimeoutMS: 60000,
+            serverSelectionTimeoutMS: 60000, // Increase to 60 sec
+            socketTimeoutMS: 120000, // Increase to 120 sec
+            connectTimeoutMS: 120000, // Increase to 120 sec
             keepAlive: true,
             keepAliveInitialDelay: 300000, // 5 minutes
         });
@@ -29,7 +30,6 @@ async function connectDB() {
     }
 }
 
-// Immediately invoke connection at startup
 connectDB().catch((err) => console.error("DB Init Error:", err));
 
-module.exports = mongoose; // Export Mongoose instance
+module.exports = mongoose;
