@@ -52,7 +52,7 @@ const schema = new mongo.Schema({
     
     // order status
     order_status :{
-        type:String,
+        type: String,
         default:"added",
     },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
@@ -63,10 +63,13 @@ const schema = new mongo.Schema({
         type: Date,
         default: Date.now()   
     },
-    
     deletedAt: {
         type: Date,
     },
+    updatedAt: {
+        type: Date,
+    },
+
 },{
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
@@ -94,7 +97,15 @@ schema.virtual('profit').get(function () {
     return actualProfit;
 });
 
-
+schema.virtual('commission').get(function () {
+    const items = this.revenue_items || [];
+    let grossAmount = 0;
+    items.forEach(item => {
+        grossAmount += Number(item.value);
+    });
+    const commission = grossAmount * (this.created_by.staff_commision /100);
+    return commission;
+});
  
 
 module.exports = mongo.model('orders', schema);

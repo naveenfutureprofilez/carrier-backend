@@ -6,5 +6,8 @@ const orderController = require('../controllers/orderController');
 router.route('/order/add').post(validateToken, orderController.create_order);
 router.route('/order/listings').get(validateToken, orderController.order_listing);
 router.route('/account/order/listings').get(validateToken, orderController.order_listing_account);
+router.route('/account/order/update/:id/:type').post(validateToken, orderController.updateOrderPaymentStatus);
+router.route('/account/order-status/:id').post(validateToken, orderController.updateOrderStatus);
+router.route('/overview').get(validateToken, orderController.overview);
 
 module.exports = router;
