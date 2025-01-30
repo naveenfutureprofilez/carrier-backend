@@ -1,21 +1,27 @@
-const dotenv = require('dotenv');
-dotenv.config({path:'config.env'});
+const { default: mongoose } = require("mongoose");
 
-const mongoose = require('mongoose');
-mongoose.set('strictQuery', true);
+let isConnected; // Global variable
 
-// mongoose.connect( `mongodb+srv://naveenfp:naveenfp@cluster0.5c8ne.mongodb.net/carrier`, {
-mongoose.connect(process.env.DB_URL_OFFICE, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    autoIndex: false, // Don't build indexes 
-    maxPoolSize: 10, // Maintain up to 10 socket connections
-    family: 4,
-    serverSelectionTimeoutMS: 25000, // Increase to 15 seconds
-    socketTimeoutMS: 60000 // Increase to 15 seconds
- }).then(() => {
-   console.log('MongoDB connected successfully');
- }).catch((err) => {
-   console.error('MongoDB connection error: ', err);
- }); 
-  
+async function connectDB() {
+    if (isConnected) {
+        console.log("Using existing database connection");
+        return;
+    }
+    try {
+        const db = await mongoose.connect(process.env.DB_URL_OFFICE, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            bufferCommands: false,
+            autoIndex: false,
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 60000
+        });
+        isConnected = db.connections[0].readyState;
+        console.log("Database connected successfully !! =>>>");
+    } catch (error) {
+        console.error("Database connection failed:", error);
+    }
+}
+
+module.exports = connectDB;
