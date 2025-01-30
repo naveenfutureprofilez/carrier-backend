@@ -12,7 +12,7 @@ async function connectDB() {
         const db = await mongoose.connect(process.env.DB_URL_OFFICE, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            bufferCommands: false,
+            bufferCommands: true,
             autoIndex: false,
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 60000, // Increase to 60 sec
