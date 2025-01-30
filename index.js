@@ -6,8 +6,7 @@ const bodyParser = require('body-parser');
 require('dotenv').config()
 const globalErrorHandler = require("./middlewares/gobalErrorHandler");
 const errorHandler = require("./middlewares/errorHandler");
-const connectDB = require("./db/config"); 
-connectDB();
+require("./db/config"); 
 
 const corsOptions = {
   origin: '*',
