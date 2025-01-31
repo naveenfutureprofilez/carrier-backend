@@ -19,6 +19,7 @@ exports.create_order = catchAsync(async (req, res) => {
       carrier_payment_date,
       carrier_payment_method,
       revenue_items,
+      new_updated_pickup,
       // order status
       order_status,
     } = req.body;
@@ -110,7 +111,6 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       });
    }
 });
-   
 
 exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
    try { 

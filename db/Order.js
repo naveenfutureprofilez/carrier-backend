@@ -44,12 +44,10 @@ const schema = new mongo.Schema({
         type: String
     },
 
-
     // REVENUE ITEMS
     revenue_items: [],
     revenue_currency:String,
-
-    
+ 
     // order status
     order_status :{
         type: String,
