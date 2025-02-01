@@ -130,6 +130,7 @@ exports.getDistance = async (req, res) => {
   try {
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start}&destination=${end}&key=${key}`;
     const response = await axios.get(url);
+    console.log(response)
     res.json({
       success: true,
       message: "Success",
