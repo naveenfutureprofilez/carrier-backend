@@ -125,16 +125,14 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
 
 exports.getDistance = async (req, res) => {
   const { start, end } = req.body;
-  const key = process.env.GOOGLE_API_KEY // Avoid hardcoding API keys in production!
-  console.log("process.env.GOOGLE_API_KEY", key);
   try {
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start}&destination=${end}&key=${key}`;
+    const url = `https://api.distancematrix.ai/maps/api/distancematrix/json?origins=${start}&destinations=${end}&departure_time=now&key=${process.env.DIMETRIX_KEY}`;
     const response = await axios.get(url);
     console.log(response)
     res.json({
       success: true,
       message: "Success",
-      data: response?.data?.routes[0].legs[0].distance.value || 0
+      data: response?.data?.rows[0].elements[0].distance.value || 0
     });
   } catch (error) {
     console.error("Error fetching directions:", error.message);

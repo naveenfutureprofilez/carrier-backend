@@ -7,7 +7,6 @@ async function connectDB() {
         console.log("✅ Using existing database connection");
         return;
     }
-
     try {
         const db = await mongoose.connect(process.env.DB_URL_OFFICE, {
             useNewUrlParser: true,
@@ -21,7 +20,6 @@ async function connectDB() {
             keepAlive: true,
             keepAliveInitialDelay: 300000, // 5 minutes
         });
-
         isConnected = db.connections[0].readyState; // 1 means connected
         console.log("✅ Database connected successfully");
     } catch (error) {
@@ -29,7 +27,5 @@ async function connectDB() {
         throw new Error(error);
     }
 }
-
 connectDB().catch((err) => console.error("DB Init Error:", err));
-
 module.exports = mongoose;
