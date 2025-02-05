@@ -1,31 +1,44 @@
 const mongoose = require("mongoose");
 
-let isConnected = false; // Track connection state globally
+// Remove global isConnected flag; Mongoose manages connection state internally
 
 async function connectDB() {
-    if (isConnected) {
-        console.log("✅ Using existing database connection");
-        return;
-    }
     try {
-        const db = await mongoose.connect(process.env.DB_URL_OFFICE, {
+        await mongoose.connect(process.env.DB_URL_OFFICE, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            bufferCommands: true,
-            autoIndex: false,
             maxPoolSize: 10,
-            serverSelectionTimeoutMS: 60000, // Increase to 60 sec
-            socketTimeoutMS: 120000, // Increase to 120 sec
-            connectTimeoutMS: 120000, // Increase to 120 sec
+            serverSelectionTimeoutMS: 60000,    // 60s to select server
+            socketTimeoutMS: 120000,            // 120s before closing sockets
+            connectTimeoutMS: 120000,           // 120s to establish connection
+            bufferCommands: true,               // Enable buffering
+            autoIndex: false,
             keepAlive: true,
-            keepAliveInitialDelay: 300000, // 5 minutes
+            keepAliveInitialDelay: 300000,
         });
-        isConnected = db.connections[0].readyState; // 1 means connected
         console.log("✅ Database connected successfully");
     } catch (error) {
         console.error("❌ Database connection failed:", error);
-        throw new Error(error);
+        throw error; // Rethrow to handle in the catch block
     }
 }
-connectDB().catch((err) => console.error("DB Init Error:", err));
+
+// Handle connection events
+mongoose.connection.on("connected", () => {
+    console.log("Mongoose connected to DB");
+});
+
+mongoose.connection.on("error", (err) => {
+    console.error("Mongoose connection error:", err);
+});
+
+mongoose.connection.on("disconnected", () => {
+    console.log("Mongoose disconnected");
+});
+
+// Connect to DB and handle errors
+connectDB().then(async () => {
+    await mongoose.model('users').findOne();
+}).catch(err => console.error("Initial DB connection failed:", err));
+
 module.exports = mongoose;
