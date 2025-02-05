@@ -57,6 +57,9 @@ const schema = new mongo.Schema({
     totalDistance : { 
         type: Number
     },
+    notes : {
+        type: String,
+    },
     createdAt: {
         type: Date,
         default: Date.now()   

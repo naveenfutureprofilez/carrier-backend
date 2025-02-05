@@ -188,6 +188,40 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     }
 });
 
+
+exports.addnote = catchAsync(async (req, res) => {
+   try { 
+      const { notes } = req.body;
+      console.log("req.params.id",req.params.id)
+      const order  = await Order.findByIdAndUpdate(req.params.id, {
+         notes : notes,
+         updatedAt : Date.now(),
+      }, {
+         new: true, 
+         runValidators: true,
+      });
+      if(!order){ 
+        res.send({
+          status: false,
+          carrier : order,
+          message: "failed to add note on this order.",
+        });
+      } 
+      console.log("order",order)
+      res.send({
+        status: true,
+        error :order,
+        message: "Note has been added.",
+      });
+    } catch (error) {
+      res.send({
+        status: false,
+        error :error,
+        message: "Failed to update order information.",
+      });
+    }
+});
+
 exports.overview = catchAsync(async (req, res) => {
    const totalLoads = await Order.countDocuments();
    const intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
