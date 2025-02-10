@@ -5,6 +5,7 @@ const orderController = require('../controllers/orderController');
 
 router.route('/order/add').post(validateToken, orderController.create_order);
 router.route('/order/listings').get(validateToken, orderController.order_listing);
+router.route('/order/detail/:id').get(validateToken, orderController.order_detail);
 router.route('/account/order/listings').get(validateToken, orderController.order_listing_account);
 router.route('/account/order/update/:id/:type').post(validateToken, orderController.updateOrderPaymentStatus);
 

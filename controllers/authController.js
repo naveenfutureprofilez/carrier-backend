@@ -129,14 +129,12 @@ const login = catchAsync ( async (req, res, next) => {
       return next(new AppError("Email and password is required !!", 401))
    }
    const user = await User.findOne({email}).select('+password');
-   
    if(!user){
     res.status(200).json({
       status : false,
       message:"Invalid Details",
      });
    }
-
    if(user && user.status === 'inactive'){
     res.status(200).json({
       status : false,

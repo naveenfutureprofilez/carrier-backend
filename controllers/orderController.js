@@ -188,7 +188,6 @@ exports.updateOrderStatus = catchAsync(async (req, res) => {
     }
 });
 
-
 exports.addnote = catchAsync(async (req, res) => {
    try { 
       const { notes } = req.body;
@@ -240,6 +239,27 @@ exports.overview = catchAsync(async (req, res) => {
    ] 
    });
  });
+
+ exports.order_detail = catchAsync(async (req, res) => {
+   const id = req.params.id;
+   const order = await Order.findOne({
+      _id : id,
+      deletedAt : null || ''
+    }).populate(['created_by', 'customer', 'carrier']);
+
+    if(!order){ 
+      res.json({
+         status: false,
+         orders: null,
+         message: "Order not found."
+       });
+    }
+   res.json({
+      status: true,
+      order: order,
+   });
+});
+
 
  
 
