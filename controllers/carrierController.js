@@ -128,17 +128,24 @@ exports.getDistance = async (req, res) => {
   try {
     const url = `https://api.distancematrix.ai/maps/api/distancematrix/json?origins=${start}&destinations=${end}&departure_time=now&key=${process.env.DIMETRIX_KEY}`;
     const response = await axios.get(url);
-    console.log(response)
-    res.json({
-      success: true,
-      message: "Success",
-      data: response?.data?.rows[0].elements[0].distance.value || 0
-    });
+    if(response?.data?.rows[0]?.elements[0]?.distance?.value){
+      res.json({
+        success: true,
+        message: "Success",
+        data: response?.data?.rows[0].elements[0].distance.value || 0
+      });
+    } else { 
+      res.json({
+        success: false,
+        message: "Unable to calculate distance between all shipping locations. Please check all the locations correctly.",
+        data: response?.data?.rows[0].elements[0].distance.value || 0
+      });
+    }
   } catch (error) {
     console.error("Error fetching directions:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch directions from Google Maps API',
+      message: 'Unable to calculate distance. Please check all the locations correctly.',
       error: error.message
     });
   }
