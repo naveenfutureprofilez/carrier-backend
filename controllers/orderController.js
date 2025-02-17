@@ -3,6 +3,7 @@ const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 const APIFeatures  = require("../utils/APIFeatures");
 const Order = require("../db/Order");
+const Files = require("../db/Files");
 
 exports.create_order = catchAsync(async (req, res) => {
    const { company_name,
@@ -57,6 +58,7 @@ exports.create_order = catchAsync(async (req, res) => {
 
 });
 
+
 exports.order_listing = catchAsync(async (req, res) => {
    const Query = new APIFeatures(
      Order.find({
@@ -64,7 +66,7 @@ exports.order_listing = catchAsync(async (req, res) => {
      }).populate(['created_by', 'customer', 'carrier']),
      req.query
    ).sort();
-  const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
+  const { query, page, limit, totalPages } = await Query.paginate();
   const data = await query;
   res.json({
     status: true,
@@ -240,7 +242,7 @@ exports.overview = catchAsync(async (req, res) => {
    });
  });
 
- exports.order_detail = catchAsync(async (req, res) => {
+exports.order_detail = catchAsync(async (req, res) => {
    const id = req.params.id;
    const order = await Order.findOne({
       _id : id,
@@ -257,6 +259,25 @@ exports.overview = catchAsync(async (req, res) => {
    res.json({
       status: true,
       order: order,
+   });
+});
+
+exports.order_docs = catchAsync(async (req, res) => {
+   const id = req.params.id;
+   const files = await Files.find({
+      order : id,
+      deletedAt : null || ''
+    });
+    if(!files){ 
+      res.json({
+         status: false,
+         files: null,
+         message: "files not found."
+       });
+    }
+   res.json({
+      status: true,
+      files: files,
    });
 });
 

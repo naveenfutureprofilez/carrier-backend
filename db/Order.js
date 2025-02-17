@@ -1,5 +1,6 @@
 const { default: mongoose } = require('mongoose');
 const mongo = require('mongoose'); 
+const Files = require('./Files');
 const schema = new mongo.Schema({
     company_name:{ 
         type:String,
@@ -11,7 +12,6 @@ const schema = new mongo.Schema({
         min: 0,
     }, 
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'customers'},
-
 
     // Shipping details
     shipping_details : [],
@@ -30,7 +30,6 @@ const schema = new mongo.Schema({
     payment_method :{
         type: String
     },
-
 
     // Carrier Payment
     carrier_payment_status :{
@@ -70,12 +69,10 @@ const schema = new mongo.Schema({
     updatedAt: {
         type: Date,
     },
-
 },{
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 }); 
-
 
 schema.virtual('gross_amount').get(function () {
     const items = this.revenue_items || [];
@@ -85,7 +82,6 @@ schema.virtual('gross_amount').get(function () {
     });
     return grossAmount;
 });
-
 
 schema.virtual('profit').get(function () {
     const items = this.revenue_items || [];

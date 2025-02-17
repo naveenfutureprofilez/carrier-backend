@@ -13,12 +13,14 @@ const schema = new mongoose.Schema({
         required: [true, 'Please enter your email address.'],
         lowercase: true,
         validate: [validator.isEmail, 'Please provide a valid email address.'],
-        unique: true
+        unique: true,
+        index: true // ✅ Index for efficient searching
     },
     avatar: {type: String},
     status: {
         type: String,
         default: "active",
+        index: true // ✅ Index for efficient searching
     },
     staff_commision: {
         type: Number,
@@ -26,7 +28,8 @@ const schema = new mongoose.Schema({
     corporateID: { 
         type: String,
         required: [true, 'Corporate ID can not be empty.'],
-        unique: true
+        unique: true,
+        index: true // ✅ Index for efficient searching
     },
     role: {
         type: Number,
