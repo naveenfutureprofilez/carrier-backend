@@ -15,7 +15,8 @@ async function connectDB() {
             autoIndex: false,
             keepAlive: true, 
             keepAliveInitialDelay: 300000,
-        });
+        }); 
+
         console.log("✅ Database connected successfully");
     } catch (error) {
         console.error("❌ Database connection failed:", error);
