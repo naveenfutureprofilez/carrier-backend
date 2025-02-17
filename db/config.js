@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
-
-// Remove global isConnected flag; Mongoose manages connection state internally
+mongoose.set('strictQuery', true);
 
 async function connectDB() {
     try {
