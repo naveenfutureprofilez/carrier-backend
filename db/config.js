@@ -6,14 +6,14 @@ async function connectDB() {
     try {
         await mongoose.connect(process.env.DB_URL_OFFICE, {
             useNewUrlParser: true,
-            useUnifiedTopology: true,
+            useUnifiedTopology: true, 
             maxPoolSize: 10,
             serverSelectionTimeoutMS: 60000,    // 60s to select server
             socketTimeoutMS: 120000,            // 120s before closing sockets
             connectTimeoutMS: 120000,           // 120s to establish connection
             bufferCommands: true,               // Enable buffering
             autoIndex: false,
-            keepAlive: true,
+            keepAlive: true, 
             keepAliveInitialDelay: 300000,
         });
         console.log("✅ Database connected successfully");
