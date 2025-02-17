@@ -11,8 +11,8 @@ async function connectDB() {
             serverSelectionTimeoutMS: 60000,    // 60s to select server
             socketTimeoutMS: 120000,            // 120s before closing sockets
             connectTimeoutMS: 120000,           // 120s to establish connection
-            bufferCommands: true,               // Enable buffering
-            autoIndex: false,
+            bufferCommands: true,  
+            autoIndex: true,
             keepAlive: true, 
             keepAliveInitialDelay: 300000,
         }); 
