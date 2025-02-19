@@ -10,8 +10,6 @@ require("./db/config");
 const multer = require('multer');
 const Files = require('./db/Files');
 const os = require('os');
-
-
 const corsOptions = {
   origin: '*',
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -31,8 +29,8 @@ app.use("", require('./routes/orderRoutes'));
 app.use("", require('./routes/customerRoutes'));
 app.use(express.json());
 const path = require('path');
-const uploadDir = path.join(os.tmpdir(), 'uploads'); // Define the
 
+const uploadDir = path.join(os.tmpdir(), 'uploads');
 const fileupload = require('./utils/fileupload');
 const { validateToken } = require('./controllers/authController');
 const multerParse = multer({

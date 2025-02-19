@@ -21,7 +21,7 @@ const fileupload = async (file) => {
          message: "File uploaded successfully",
          mime: file.mimetype,
          filename: uniqueFilename,
-         url: `https://capitallogisticmanagement.b-cdn.net/${uniqueFilename}`,
+         url: `https://${yourStorageZone}.b-cdn.net/${uniqueFilename}`,
          file: file,
          size: file.size,
        };

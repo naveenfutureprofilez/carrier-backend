@@ -15,15 +15,13 @@ async function connectDB() {
             keepAlive: true, 
             keepAliveInitialDelay: 300000,
         }); 
-
         console.log("✅ Database connected successfully");
     } catch (error) {
         console.error("❌ Database connection failed:", error);
-        throw error; // Rethrow to handle in the catch block
+        throw error; 
     }
 }
 
-// Handle connection events
 mongoose.connection.on("connected", () => {
     console.log("Mongoose connected to DB");
 });
@@ -36,7 +34,6 @@ mongoose.connection.on("disconnected", () => {
     console.log("Mongoose disconnected");
 });
 
-// Connect to DB and handle errors
 connectDB().then(async () => {
     await mongoose.model('users').findOne();
 }).catch(err => console.error("Initial DB connection failed:", err));
