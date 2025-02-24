@@ -94,6 +94,31 @@ const editUser = catchAsync(async (req, res, next) => {
 });
 
 
+const suspandUser = catchAsync(async (req, res, next) => {
+  if(req.user && req.user.is_admin !== 1){
+    return res.json({
+      status : false,
+      message : "You are not authorized to access this route."
+    });
+  }
+  const existedUser = await User.findById(req.params.id);
+  User.findByIdAndUpdate(req.params.id, {
+    status: existedUser.status === 'active' ? 'inactive' : "active", 
+  }).then(result => {
+    result.password = undefined;
+    res.send({
+      status: true,
+      user: result,
+      message: `User account has been ${existedUser.status === 'active' ? 'suspended' : "reactivated."}`,
+    });
+  }).catch(err => {
+    JSONerror(res, err, next);
+    logger(err);
+  });
+});
+
+
+
 const signup = catchAsync(async (req, res, next) => {
   const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
   if(req.user && req.user.is_admin !== 1){
@@ -162,11 +187,9 @@ const signup = catchAsync(async (req, res, next) => {
  
 const login = catchAsync ( async (req, res, next) => { 
    const { email, password, corporateID } = req.body;
-   console.log("req.body",req.body);
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
-    //  const user = await User.findOne({email}).select('+password');
     const user = await User.findOne({ email }, { _id: 1, password: 1, status: 1, corporateID: 1 }).select('+password').lean();
     if (!user) {
         return res.status(200).json({ status: false, message: "Invalid Details" });
@@ -396,4 +419,4 @@ const resetpassword = catchAsync ( async (req, res, next) => {
   }); 
 });
 
-module.exports = {  editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };
+module.exports = { suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };

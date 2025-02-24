@@ -126,13 +126,13 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
 exports.getDistance = async (req, res) => {
   const { start, end } = req.body;
   try {
-    const url = `https://api.distancematrix.ai/maps/api/distancematrix/json?origins=${start}&destinations=${end}&departure_time=now&key=${process.env.DIMETRIX_KEY}`;
+    const url = `https://api.distancematrix.ai/maps/api/distancematrix/json?origins=${start}&destinations=${end}&key=${process.env.DIMETRIX_KEY}`;
     const response = await axios.get(url);
     if(response?.data?.rows[0]?.elements[0]?.distance?.value){
       res.json({
         success: true,
         message: "Success",
-        data: response?.data?.rows[0].elements[0].distance.value || 0
+        data: (response?.data?.rows[0].elements[0].distance.value)/1000 || 0
       });
     } else { 
       res.json({

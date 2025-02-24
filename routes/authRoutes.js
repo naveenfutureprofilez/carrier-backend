@@ -5,6 +5,7 @@ const { validateToken } = require('../controllers/authController');
 
 router.route('/create_user').post(validateToken, authController.signup);
 router.route('/edit_user/:id').post(validateToken, authController.editUser);
+router.route('/suspanduser/:id').get(validateToken, authController.suspandUser);
 router.route('/login').post(authController.login); 
 router.route('/forgotpassword').post(authController.forgotPassword); 
 router.route('/resetpassword/:token').patch(authController.resetpassword); 
