@@ -56,6 +56,7 @@ const schema = new mongo.Schema({
     totalDistance : { 
         type: Number
     },
+    total_amount:  {type:Number},
     notes : {
         type: String,
     },

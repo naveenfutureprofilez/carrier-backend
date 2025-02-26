@@ -20,8 +20,8 @@ exports.create_order = catchAsync(async (req, res) => {
       carrier_payment_date,
       carrier_payment_method,
       revenue_items,
-      new_updated_pickup,
-      // order status
+      totalDistance,
+      total_amount,
       order_status,
     } = req.body;
 
@@ -32,7 +32,8 @@ exports.create_order = catchAsync(async (req, res) => {
       customer_order_no : parseInt(customer_order_no),
       shipping_details,
       carrier,
-      carrier_amount,
+      total_amount,
+      carrier_amount, totalDistance,
       carrier_amount_currency,
       payment_status,
       payment_status_date,
