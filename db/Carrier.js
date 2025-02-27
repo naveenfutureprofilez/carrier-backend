@@ -10,6 +10,19 @@ const schema = new mongoose.Schema({
     },
     email: {
         type: String,
+        unique: true
+    },
+    country: {
+        type: String,
+    },
+    state: {
+        type: String,
+    },
+    city: {
+        type: String,
+    },
+    zipcode: {
+        type: String,
     },
     location: {
         type: String,

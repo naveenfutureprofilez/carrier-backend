@@ -10,7 +10,21 @@ const schema = new mongoose.Schema({
     },
     email: {
         type: String,
-        required: [true, 'Please enter customer email address.'],
+    },
+    address: {
+        type: String,
+    },
+    country: {
+        type: String,
+    },
+    state: {
+        type: String,
+    },
+    city: {
+        type: String,
+    },
+    zipcode: {
+        type: String,
     },
     customerID: {
         type: String,

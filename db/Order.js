@@ -75,41 +75,30 @@ const schema = new mongo.Schema({
     toObject: { virtuals: true }
 }); 
 
-schema.virtual('gross_amount').get(function () {
-    const items = this.revenue_items || [];
-    let grossAmount = 0;
-    items.forEach(item => {
-        grossAmount += Number(item.value);
-    });
-    return grossAmount;
-});
+// schema.virtual('gross_amount').get(function () {
+//     const items = this.revenue_items || [];
+//     let grossAmount = 0;
+//     items.forEach(item => {
+//         grossAmount += Number(item.value);
+//     });
+//     return grossAmount;
+// });
 
 schema.virtual('profit').get(function () {
-    const items = this.revenue_items || [];
-    let grossAmount = 0;
-    items.forEach(item => {
-        grossAmount += Number(item.value);
-    });
-    const commission = grossAmount * (this.created_by.staff_commision /100);
-    const actualProfit = grossAmount - commission - this.carrier_amount;
+    const total_amount = this.total_amount || 0;
+    const commission = total_amount * (this.created_by.staff_commision /100);
+    const actualProfit = total_amount - commission - this.carrier_amount;
     return actualProfit;
 });
 
 schema.virtual('commission').get(function () {
-    const items = this.revenue_items || [];
-    let grossAmount = 0;
-    items.forEach(item => {
-        grossAmount += Number(item.value);
-    });
-    const commission = grossAmount * (this.created_by.staff_commision /100);
+    const total_amount = this.total_amount || 0;
+    const commission = total_amount * (this.created_by.staff_commision /100);
     return commission;
 });
  
 
 module.exports = mongo.model('orders', schema);
-
-
-
 
 
 // // Shipping details

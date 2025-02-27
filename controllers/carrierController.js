@@ -4,9 +4,23 @@ const Carrier = require("../db/Carrier");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
 const axios = require("axios");
-
+ 
 exports.addCarrier = catchAsync(async (req, res, next) => {
-  const { name, phone, email, location } = req.body;
+  const { name, phone, email, location, country, state, city, zipcode } = req.body;
+
+  const existingCarrier = await Carrier.findOne({ 
+    $or: [{ email }, { phone }] 
+  });
+
+  if (existingCarrier) {
+    return res.status(200).json({
+      status: false,
+      message: existingCarrier.email === email 
+        ? "Email already exists. Please use a different email." 
+        : "Phone number already exists. Please use a different phone number.",
+    });
+  }
+
   let carrierID;
   let isUnique = false;
   while (!isUnique) {
@@ -21,8 +35,12 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
     name: name,
     email: email,
     location: location,
-   phone: phone,
+    phone: phone,
    carrierID: carrierID,
+   country: country,
+   state: state,
+   city: city,
+   zipcode: zipcode,
    created_by:req.user._id,
   }).then(result => {
     res.send({
@@ -37,12 +55,24 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
 });
 
 exports.carriers_listing = catchAsync(async (req, res) => {
-  const Query = new APIFeatures(
-    Carrier.find({
-      deletedAt : null || ''
-    }).populate('created_by'),
-    req.query
-    ).sort();
+
+    let Query;
+    if(req.user && req.user.is_admin == 1){
+      Query = new APIFeatures(
+        Carrier.find({
+          deletedAt : null || ''
+        }).populate('created_by'),
+        req.query
+        ).sort();
+    } else {
+      Query = new APIFeatures(
+        Carrier.find({
+          deletedAt : null || '',
+          created_by : req.user._id,
+        }).populate('created_by'),
+        req.query
+        ).sort();
+    }
     const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
     const data = await query;
     res.json({
@@ -90,13 +120,32 @@ exports.deleteCarrier = catchAsync(async (req, res) => {
 
 exports.updateCarrier = catchAsync(async (req, res, next) => {
   try { 
-    const { name, phone, email, location } = req.body;
-    console.log("req.params.id",req.params.id)
+    const { name, phone, email, location, country, state, city, zipcode, carrierID } = req.body;
+
+    const existingCarrier = await Carrier.findOne({ 
+      $or: [{ email }, { phone }],
+      carrierID: { $ne: carrierID } 
+    });
+    console.log("existingCarrier",existingCarrier);
+  
+    if (existingCarrier) {
+      return res.status(200).json({
+        status: false,
+        message: existingCarrier.email === email 
+          ? "Email already exists. Please use a different email." 
+          : "Phone number already exists. Please use a different phone number.",
+      });
+    }
+    
     const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, {
       name: name,
       email: email,
       location: location,
-      phone: phone
+      phone: phone,
+      country: country,
+      state: state,
+      city: city,
+      zipcode: zipcode,
     }, {
       new: true, 
       runValidators: true,
@@ -115,6 +164,7 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
     });
 
   } catch (error) {
+    console.log("error",error)
     res.send({
       status: false,
       error :error,

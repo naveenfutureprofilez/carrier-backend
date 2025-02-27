@@ -25,6 +25,16 @@ exports.create_order = catchAsync(async (req, res) => {
       order_status,
     } = req.body;
 
+   const isSameOrderNumber = await Order.findOne({
+      customer_order_no : customer_order_no
+   });
+
+   if(isSameOrderNumber){
+      res.json({
+         status:false,
+         message: "Order number already exists."
+      });
+   }
    const order = await Order.create({
       company_name,
       customer : customer,
@@ -59,14 +69,25 @@ exports.create_order = catchAsync(async (req, res) => {
 
 });
 
-
 exports.order_listing = catchAsync(async (req, res) => {
-   const Query = new APIFeatures(
-     Order.find({
-       deletedAt : null || ''
-     }).populate(['created_by', 'customer', 'carrier']),
-     req.query
-   ).sort();
+   let Query;
+   if(req.user && req.user.role == 1){
+      Query = new APIFeatures(
+         Order.find({
+            deletedAt : null || '',
+            created_by: req.user._id
+         }).populate(['created_by', 'customer', 'carrier']),
+         req.query
+      ).sort();
+   } else { 
+      Query = new APIFeatures(
+         Order.find({
+            deletedAt : null || '',
+         }).populate(['created_by', 'customer', 'carrier']),
+         req.query
+      ).sort();
+   }
+      
   const { query, page, limit, totalPages } = await Query.paginate();
   const data = await query;
   res.json({
@@ -85,10 +106,8 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       if (search) {
          filter.$or = [
             { customer_order_no: { $regex: search } },
-            // { title: { $regex: search, $options: "i" } }  // Case-insensitive search in title
          ];
       }
-      console.log("filter", { $regex: search });
       const Query = new APIFeatures(
          Order.find(filter).populate(["created_by", "customer", "carrier"]),
          req.query
@@ -225,21 +244,30 @@ exports.addnote = catchAsync(async (req, res) => {
 });
 
 exports.overview = catchAsync(async (req, res) => {
-   const totalLoads = await Order.countDocuments();
-   const intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
-   const completedLoads = await Order.countDocuments({ order_status: 'completed'});
-   const pendingLoads = await Order.countDocuments({ order_status: 'added'});
-   const pendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
+   let totalLoads, intransitLoads, completedLoads, pendingLoads, pendingPayments;
+   if(req.user.role == 1){
+      totalLoads = await Order.countDocuments({created_by: req.user._id});
+      intransitLoads = await Order.countDocuments({ order_status: 'intransit', created_by: req.user._id});
+      completedLoads = await Order.countDocuments({ order_status: 'completed', created_by: req.user._id});
+      pendingLoads = await Order.countDocuments({ order_status: 'added', created_by: req.user._id});
+      pendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, created_by: req.user._id });
+   } else {
+      totalLoads = await Order.countDocuments();
+      intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
+      completedLoads = await Order.countDocuments({ order_status: 'completed'});
+      pendingLoads = await Order.countDocuments({ order_status: 'added'});
+      pendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
+   }
    res.json({
-   status: true,
-   message: 'Dashboard data retrieved successfully.',
-   lists: [
-      { title : 'Total Loads', data: totalLoads, link:"none" },
-      { title : 'Intransit Loads', data: intransitLoads, link:"none" },
-      { title : 'Completed Loads', data: completedLoads, link:"none" },
-      { title : 'Pending Loads', data: pendingLoads, link:"none" },
-      { title : 'Pending Payments', data: pendingPayments, link:"none" },
-   ] 
+      status: true,
+      message: 'Dashboard data retrieved successfully.',
+      lists: [
+         { title : 'Total Loads', data: totalLoads, link:"none" },
+         { title : 'Intransit Loads', data: intransitLoads, link:"none" },
+         { title : 'Completed Loads', data: completedLoads, link:"none" },
+         { title : 'Pending Loads', data: pendingLoads, link:"none" },
+         { title : 'Pending Payments', data: pendingPayments, link:"none" },
+      ] 
    });
  });
 
