@@ -136,13 +136,14 @@ exports.order_listing_account = catchAsync(async (req, res) => {
 
 exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
    try { 
-      const { status, method } = req.body;
+      const { status, method, notes } = req.body;
       let order;
       if(req.params.type === 'customer'){
          order = await Order.findByIdAndUpdate(req.params.id, {
             payment_status : status,
             payment_status_date  : Date.now(),
             payment_method : method,
+            customer_payment_notes : notes
          }, {
            new: true, 
            runValidators: true,
@@ -152,6 +153,7 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
             carrier_payment_status :status,
             carrier_payment_date : Date.now(),
             carrier_payment_method : method,
+            carrier_payment_notes : notes
          }, {
            new: true, 
            runValidators: true,

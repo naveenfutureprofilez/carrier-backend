@@ -43,10 +43,10 @@ class APIFeatures {
  
     // PAGINATE
     async paginate(){
-        const page = this.queryString.page * 1 || 1; // Default to page 1 if not specified
-        const limit = this.queryString.limit * 1 || 40;
+        const page = this.queryString.page * 1 || 1;
+        const limit = this.queryString.limit * 1 || 1000;
         const skip = (page - 1) * limit;
-        const totalDocuments = await this.query.clone().countDocuments(); // Clone query to prevent applying skip/limit
+        const totalDocuments = await this.query.clone().countDocuments();
         this.query = this.query.skip(skip).limit(limit);
         const totalPages = Math.ceil(totalDocuments / limit);
         return { query: this.query, totalDocuments, page, limit, totalPages };

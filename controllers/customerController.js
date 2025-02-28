@@ -80,3 +80,83 @@ exports.customers_listing = catchAsync(async (req, res) => {
     message: data.length ? undefined : "No customers found"
   });
 });
+
+exports.updateCustomer = catchAsync(async (req, res, next) => {
+  const { name, phone, email, address, country, state, city, zipcode, customerID } = req.body;
+
+  const existingCustomer = await Customer.findOne({ 
+    $or: [{ email }, { phone }],
+    customerID: { $ne: customerID } 
+  });
+
+  if (existingCustomer) {
+    return res.status(200).json({
+      status: false,
+      message: existingCustomer.email === email 
+        ? "Email already exists. Please use a different email." 
+        : "Phone number already exists. Please use a different phone number.",
+    });
+  }
+ 
+  await Customer.syncIndexes();
+  const updatedUser = await Customer.findByIdAndUpdate(req.params.id, {
+    name: name,
+    email: email,
+    phone: phone,
+    address: address,
+    country: country,
+    state: state,
+    city: city,
+    zipcode: zipcode,
+    customerID: customerID,
+    created_by:req.user._id,
+  }, {
+    new: true, 
+    runValidators: true,
+  });
+  if(!updatedUser){ 
+    res.send({
+      status: false,
+      customer : updatedUser,
+      message: "Failed to update customer information.",
+    });
+  } 
+  res.send({
+    status: true,
+    error : updatedUser,
+    message: "Customer has been updated.",
+  });
+});
+
+exports.deleteCustomer = catchAsync(async (req, res) => {
+    try {
+      const customer = await Customer.findById(req.params.id);
+      if (!customer) {
+        return res.status(404).json({
+          status: false,
+          error: 'customer not found.',
+        });
+      }
+      customer.deletedAt = Date.now();
+      const result = await customer.save();
+      if (result) {
+        return res.status(200).json({
+          status: true,
+          message: `customer has been removed.`,
+          customer: result,
+        });
+      } else {
+        return res.status(400).json({
+          status: false,
+          customer: null,
+          error: 'Something went wrong in removing the customer. Please try again.',
+        });
+      }
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: error.message,
+      error: error
+    });
+  }
+});

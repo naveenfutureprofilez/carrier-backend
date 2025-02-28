@@ -12,14 +12,10 @@ const schema = new mongo.Schema({
         min: 0,
     }, 
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'customers'},
-
-    // Shipping details
     shipping_details : [],
     carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'carriers'},
     carrier_amount:  {type:Number},
     carrier_amount_currency:  {type:String},
-
-    // Order Payment status
     payment_status :{
         type:String,
         default:"pending",
@@ -30,8 +26,6 @@ const schema = new mongo.Schema({
     payment_method :{
         type: String
     },
-
-    // Carrier Payment
     carrier_payment_status :{
         type:String,
         default:"pending",
@@ -42,12 +36,8 @@ const schema = new mongo.Schema({
     carrier_payment_method :{
         type: String
     },
-
-    // REVENUE ITEMS
     revenue_items: [],
     revenue_currency:String,
- 
-    // order status
     order_status :{
         type: String,
         default:"added",
@@ -56,9 +46,15 @@ const schema = new mongo.Schema({
     totalDistance : { 
         type: Number
     },
-    total_amount:  {type:Number},
+    total_amount: {type:Number},
     notes : {
         type: String,
+    },
+    carrier_payment_notes : { 
+        type: String
+    },
+    customer_payment_notes : { 
+        type: String
     },
     createdAt: {
         type: Date,

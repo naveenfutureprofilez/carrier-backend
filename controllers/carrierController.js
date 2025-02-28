@@ -7,12 +7,10 @@ const axios = require("axios");
  
 exports.addCarrier = catchAsync(async (req, res, next) => {
   const { name, phone, email, location, country, state, city, zipcode } = req.body;
-
   const existingCarrier = await Carrier.findOne({ 
     $or: [{ email }, { phone }] 
   });
-
-  if (existingCarrier) {
+    if (existingCarrier) {
     return res.status(200).json({
       status: false,
       message: existingCarrier.email === email 
@@ -121,13 +119,10 @@ exports.deleteCarrier = catchAsync(async (req, res) => {
 exports.updateCarrier = catchAsync(async (req, res, next) => {
   try { 
     const { name, phone, email, location, country, state, city, zipcode, carrierID } = req.body;
-
     const existingCarrier = await Carrier.findOne({ 
       $or: [{ email }, { phone }],
       carrierID: { $ne: carrierID } 
     });
-    console.log("existingCarrier",existingCarrier);
-  
     if (existingCarrier) {
       return res.status(200).json({
         status: false,
@@ -136,7 +131,6 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
           : "Phone number already exists. Please use a different phone number.",
       });
     }
-    
     const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, {
       name: name,
       email: email,
@@ -154,7 +148,7 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
       res.send({
         status: false,
         carrier : updatedUser,
-        message: "failed to update carrier information.",
+        message: "Failed to update carrier information.",
       });
     } 
     res.send({
