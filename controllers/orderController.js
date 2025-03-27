@@ -20,26 +20,19 @@ exports.create_order = catchAsync(async (req, res) => {
       carrier_payment_date,
       carrier_payment_method,
       revenue_items,
+      revenue_currency,
       totalDistance,
       total_amount,
       order_status,
     } = req.body;
 
-   const isSameOrderNumber = await Order.findOne({
-      customer_order_no : customer_order_no
-   });
-
-   if(isSameOrderNumber){
-      res.json({
-         status:false,
-         message: "Order number already exists."
-      });
-   }
+   const lastOrder = await Order.findOne().sort({ customer_order_no: -1 });
+   const newOrderId = lastOrder ? lastOrder.customer_order_no + 1 : 1;
    const order = await Order.create({
       company_name,
       customer : customer,
       created_by : req.user._id,
-      customer_order_no : parseInt(customer_order_no),
+      customer_order_no : parseInt(newOrderId),
       shipping_details,
       carrier,
       total_amount,
@@ -52,6 +45,7 @@ exports.create_order = catchAsync(async (req, res) => {
       carrier_payment_date,
       carrier_payment_method,
       revenue_items,
+      revenue_currency,
       order_status
    });
 

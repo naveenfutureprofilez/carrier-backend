@@ -118,7 +118,6 @@ const suspandUser = catchAsync(async (req, res, next) => {
 });
 
 
-
 const signup = catchAsync(async (req, res, next) => {
   const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
   if(req.user && req.user.is_admin !== 1){
