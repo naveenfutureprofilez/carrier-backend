@@ -3,7 +3,13 @@ const APIFeatures  = require("../utils/APIFeatures");
 const Customer = require("../db/Customer");
 
 exports.addCustomer = catchAsync(async (req, res, next) => {
-  const { name, phone, email, address, country, state, city, zipcode } = req.body;
+  const { name, phone, 
+    mc_code, 
+    assigned_to,
+    alternative_email,
+    alternative_phone,
+    email, address, country, state, city, zipcode } = req.body;
+    
   const existingCustomer = await Customer.findOne({ 
     $or: [{ email }, { phone }] 
   });
@@ -31,6 +37,7 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
  Customer.create({
    name: name,
    email: email,
+   mc_code: email,
    phone: phone,
    address: address,
    country: country,
@@ -38,6 +45,7 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
    city: city,
    zipcode: zipcode,
    customerID: customerID,
+   assigned_to:assigned_to,
    created_by:req.user._id,
  }).then(result => {
    res.send({
@@ -57,15 +65,15 @@ exports.customers_listing = catchAsync(async (req, res) => {
     Query = new APIFeatures(
       Customer.find({
         deletedAt : null || ''
-      }).populate('created_by'),
+      }).populate('created_by').populate('assigned_to'),
       req.query
     ).sort();
   } else {
     Query = new APIFeatures(
       Customer.find({
-        created_by : req.user._id,
+        assigned_to : req.user._id,
         deletedAt : null || ''
-      }).populate('created_by'),
+      }).populate('created_by').populate('assigned_to'),
       req.query
     ).sort();
   }
@@ -74,8 +82,10 @@ exports.customers_listing = catchAsync(async (req, res) => {
   const data = await query;
   res.json({
     status: true,
+    totalDocuments: totalDocuments,
     customers: data,
     page : page,
+    per_page : limit,
     totalPages : totalPages,
     message: data.length ? undefined : "No customers found"
   });
@@ -114,6 +124,7 @@ exports.updateCustomer = catchAsync(async (req, res, next) => {
     new: true, 
     runValidators: true,
   });
+
   if(!updatedUser){ 
     res.send({
       status: false,

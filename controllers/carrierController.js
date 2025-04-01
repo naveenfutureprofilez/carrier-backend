@@ -53,30 +53,17 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
 });
 
 exports.carriers_listing = catchAsync(async (req, res) => {
-
-    let Query;
-    if(req.user && req.user.is_admin == 1){
-      Query = new APIFeatures(
-        Carrier.find({
-          deletedAt : null || ''
-        }).populate('created_by'),
-        req.query
-        ).sort();
-    } else {
-      Query = new APIFeatures(
-        Carrier.find({
-          deletedAt : null || '',
-          created_by : req.user._id,
-        }).populate('created_by'),
-        req.query
-        ).sort();
-    }
+    let Query = new APIFeatures(Carrier.find({
+        deletedAt : null || '',
+    }).populate('created_by'), req.query ).sort();
     const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
     const data = await query;
     res.json({
       status: true,
       carriers: data,
+      totalDocuments : totalDocuments,
       page : page,
+      per_page : limit,
       totalPages : totalPages,
       message: data.length ? undefined : "No files found"
     });
