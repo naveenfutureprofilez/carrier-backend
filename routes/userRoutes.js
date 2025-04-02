@@ -5,5 +5,6 @@ const userController = require('../controllers/userController');
 
 router.route('/update').patch(validateToken, userController.updateCurrentUserData);
 router.route('/delete').delete(validateToken, userController.deleteCurrentUser);
+router.route('/staff-listing').get(validateToken, userController.staffListing);
 
 module.exports = router;

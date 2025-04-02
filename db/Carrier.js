@@ -4,6 +4,10 @@ const schema = new mongoose.Schema({
         type: String,
         required: [true, 'Please enter Carrier Name.'],
     },
+    mc_code: {
+        type: String,
+        required: [true, 'Please enter MC code.'],
+    },
     phone: {
         type: String,
         required: [true, 'Please enter carrier contact number.'],
@@ -11,6 +15,12 @@ const schema = new mongoose.Schema({
     email: {
         type: String,
         unique: true
+    },
+    secondary_phone: {
+        type: String,
+    },
+    secondary_email: {
+        type: String,
     },
     country: {
         type: String,

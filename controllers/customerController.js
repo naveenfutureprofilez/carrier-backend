@@ -1,50 +1,53 @@
 const catchAsync = require("../utils/catchAsync");
 const APIFeatures  = require("../utils/APIFeatures");
 const Customer = require("../db/Customer");
+const JSONerror = require("../utils/jsonErrorHandler");
+const logger = require("../utils/logger");
 
 exports.addCustomer = catchAsync(async (req, res, next) => {
   const { name, phone, 
     mc_code, 
     assigned_to,
-    alternative_email,
-    alternative_phone,
+    secondary_email,
+    secondary_phone,
     email, address, country, state, city, zipcode } = req.body;
-    
+
   const existingCustomer = await Customer.findOne({ 
-    $or: [{ email }, { phone }] 
+    $or: [{ mc_code }, { email }] 
   });
 
   if (existingCustomer) {
     return res.status(200).json({
       status: false,
-      message: existingCustomer.email === email 
-        ? "Email already exists. Please use a different email." 
-        : "Phone number already exists. Please use a different phone number.",
+      message: existingCustomer.mc_code === mc_code 
+        ? "MC code exists. Please use a different MC code." 
+        : "Email address already exists. Please use a different email.",
     });
   }
 
-  let customerID;
-  let isUnique = false;
-  while (!isUnique) {
-     customerID = `CT_ID${Math.floor(10000 + Math.random() * 90000)}`;
-     const existingUser = await Customer.findOne({ customerID });
+  // let customerID;
+  // let isUnique = false;
+  // while (!isUnique) {
+  //    customerID = `CT_ID${Math.floor(10000 + Math.random() * 90000)}`;
+  //    const existingUser = await Customer.findOne({ customerID });
       
-     if (!existingUser) {
-        isUnique = true;
-     }
-  }
+  //    if (!existingUser) {
+  //       isUnique = true;
+  //    }
+  // }
  await Customer.syncIndexes();
  Customer.create({
    name: name,
    email: email,
-   mc_code: email,
+   secondary_email: secondary_email,
+   secondary_phone: secondary_phone,
+   mc_code: mc_code,
    phone: phone,
    address: address,
    country: country,
    state: state,
    city: city,
    zipcode: zipcode,
-   customerID: customerID,
    assigned_to:assigned_to,
    created_by:req.user._id,
  }).then(result => {
@@ -65,7 +68,7 @@ exports.customers_listing = catchAsync(async (req, res) => {
     Query = new APIFeatures(
       Customer.find({
         deletedAt : null || ''
-      }).populate('created_by').populate('assigned_to'),
+      }).populate('assigned_to'),
       req.query
     ).sort();
   } else {
@@ -73,7 +76,7 @@ exports.customers_listing = catchAsync(async (req, res) => {
       Customer.find({
         assigned_to : req.user._id,
         deletedAt : null || ''
-      }).populate('created_by').populate('assigned_to'),
+      }).populate('assigned_to'),
       req.query
     ).sort();
   }
@@ -92,33 +95,32 @@ exports.customers_listing = catchAsync(async (req, res) => {
 });
 
 exports.updateCustomer = catchAsync(async (req, res, next) => {
-  const { name, phone, email, address, country, state, city, zipcode, customerID } = req.body;
-
-  const existingCustomer = await Customer.findOne({ 
-    $or: [{ email }, { phone }],
-    customerID: { $ne: customerID } 
-  });
-
-  if (existingCustomer) {
-    return res.status(200).json({
-      status: false,
-      message: existingCustomer.email === email 
-        ? "Email already exists. Please use a different email." 
-        : "Phone number already exists. Please use a different phone number.",
-    });
+  const { name, secondary_email, secondary_phone, mc_code, phone, email, address, country, state, city, zipcode, assigned_to } = req.body;
+  
+  if (mc_code) {
+    const existingCustomer = await Customer.findOne({ mc_code: mc_code, _id: { $ne: req.params.id } });
+    if (existingCustomer) {
+      return res.status(200).send({
+        status: false,
+        message: "MC Code must be unique. This MC Code is already in use.",
+      });
+    }
   }
- 
+
   await Customer.syncIndexes();
   const updatedUser = await Customer.findByIdAndUpdate(req.params.id, {
     name: name,
     email: email,
+    secondary_email: secondary_email,
+    secondary_phone: secondary_phone,
+    mc_code: mc_code,
     phone: phone,
     address: address,
     country: country,
     state: state,
     city: city,
+    assigned_to: assigned_to,
     zipcode: zipcode,
-    customerID: customerID,
     created_by:req.user._id,
   }, {
     new: true, 

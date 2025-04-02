@@ -4,11 +4,21 @@ const schema = new mongoose.Schema({
         type: String,
         required: [true, 'Please enter customer name.'],
     },
+    mc_code: {
+        type: String,
+        required: [true, 'Please enter mc code.'],
+    },
+    secondary_phone: {
+        type: String,
+    },
     phone: {
         type: String,
         required: [true, 'Please enter customer contact number.'],
     },
     email: {
+        type: String,
+    },
+    secondary_email: {
         type: String,
     },
     address: {
@@ -25,10 +35,6 @@ const schema = new mongoose.Schema({
     },
     zipcode: {
         type: String,
-    },
-    customerID: {
-        type: String,
-        unique: true
     },
     createdAt: {
        type: Date,

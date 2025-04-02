@@ -6,16 +6,13 @@ const logger = require("../utils/logger");
 const axios = require("axios");
  
 exports.addCarrier = catchAsync(async (req, res, next) => {
-  const { name, phone, email, location, country, state, city, zipcode } = req.body;
-  const existingCarrier = await Carrier.findOne({ 
-    $or: [{ email }, { phone }] 
-  });
+  const { name, phone, email, location, country, state, city, zipcode, secondary_email, secondary_phone, mc_code } = req.body;
+  
+  const existingCarrier = await Carrier.findOne({mc_code});
     if (existingCarrier) {
     return res.status(200).json({
       status: false,
-      message: existingCarrier.email === email 
-        ? "Email already exists. Please use a different email." 
-        : "Phone number already exists. Please use a different phone number.",
+      message:"MC code already exists. Please use a different MC code." 
     });
   }
 
@@ -34,12 +31,15 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
     email: email,
     location: location,
     phone: phone,
-   carrierID: carrierID,
-   country: country,
-   state: state,
-   city: city,
-   zipcode: zipcode,
-   created_by:req.user._id,
+    carrierID: carrierID,
+    country: country,
+    state: state,
+    city: city,
+    zipcode: zipcode,
+    created_by:req.user._id,
+    mc_code: mc_code,
+    secondary_email: secondary_email,
+    secondary_phone: secondary_phone
   }).then(result => {
     res.send({
       status: true,
@@ -105,19 +105,18 @@ exports.deleteCarrier = catchAsync(async (req, res) => {
 
 exports.updateCarrier = catchAsync(async (req, res, next) => {
   try { 
-    const { name, phone, email, location, country, state, city, zipcode, carrierID } = req.body;
-    const existingCarrier = await Carrier.findOne({ 
-      $or: [{ email }, { phone }],
-      carrierID: { $ne: carrierID } 
-    });
-    if (existingCarrier) {
-      return res.status(200).json({
-        status: false,
-        message: existingCarrier.email === email 
-          ? "Email already exists. Please use a different email." 
-          : "Phone number already exists. Please use a different phone number.",
-      });
+    const { mc_code,  name, phone, email, location, country, state, city, zipcode, secondary_email, secondary_phone } = req.body;
+     
+    if (mc_code) {
+      const existingCarrier = await Carrier.findOne({ mc_code: mc_code, _id: { $ne: req.params.id } });
+      if (existingCarrier) {
+        return res.status(200).send({
+          status: false,
+          message: "MC Code must be unique. This MC Code is already in use.",
+        });
+      }
     }
+
     const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, {
       name: name,
       email: email,
@@ -127,6 +126,9 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
       state: state,
       city: city,
       zipcode: zipcode,
+      mc_code: mc_code,
+      secondary_email: secondary_email,
+      secondary_phone: secondary_phone
     }, {
       new: true, 
       runValidators: true,

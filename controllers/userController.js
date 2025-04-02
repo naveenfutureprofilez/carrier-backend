@@ -1,4 +1,5 @@
 const User = require("../db/Users");
+const APIFeatures = require("../utils/APIFeatures");
 const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 
@@ -45,4 +46,22 @@ exports.deleteCurrentUser = catchAsync( async (req, res, next) => {
       user:user,
       message:"User account is disabled !!"
    });
+});
+
+exports.staffListing = catchAsync(async (req, res) => {
+    let Query = new APIFeatures(User.find({
+         role : 1,
+        deletedAt : null || '',
+    }), req.query ).sort();
+    const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
+    const data = await query;
+    res.json({
+      status: true,
+      users: data,
+      totalDocuments : totalDocuments,
+      page : page,
+      per_page : limit,
+      totalPages : totalPages,
+      message: data.length ? undefined : "No files found"
+    });
 });
