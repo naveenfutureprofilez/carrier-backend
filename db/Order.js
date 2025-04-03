@@ -7,6 +7,11 @@ const schema = new mongo.Schema({
         type:String,
         require:true,
     },
+    serial_no:  {
+        type: Number,
+        unique:true,
+        min: 0,
+    },
     customer_order_no:  {
         type:Number,
         unique:true,

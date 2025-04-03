@@ -26,13 +26,14 @@ exports.create_order = catchAsync(async (req, res) => {
       order_status,
     } = req.body;
 
-   const lastOrder = await Order.findOne().sort({ customer_order_no: -1 });
-   const newOrderId = lastOrder ? lastOrder.customer_order_no + 1 : 1;
+   const lastOrder = await Order.findOne().sort({ serial_no: -1 });
+   const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1;
    const order = await Order.create({
       company_name,
       customer : customer,
       created_by : req.user._id,
-      customer_order_no : parseInt(newOrderId),
+      serial_no : parseInt(newOrderId),
+      customer_order_no : parseInt(customer_order_no),
       shipping_details,
       carrier,
       total_amount,
@@ -69,7 +70,7 @@ exports.order_listing = catchAsync(async (req, res) => {
       Query = new APIFeatures(
          Order.find({
             deletedAt : null || '',
-            created_by: req.user._id
+            created_by : req.user._id
          }).populate(['created_by', 'customer', 'carrier']),
          req.query
       ).sort();
