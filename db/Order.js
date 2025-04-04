@@ -1,7 +1,5 @@
 const { default: mongoose } = require('mongoose');
 const mongo = require('mongoose'); 
-const Files = require('./Files');
-const Counter = require('./Counter');
 const schema = new mongo.Schema({
     company_name:{ 
         type:String,
