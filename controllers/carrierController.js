@@ -7,7 +7,6 @@ const axios = require("axios");
  
 exports.addCarrier = catchAsync(async (req, res, next) => {
   const { name, phone, email, location, country, state, city, zipcode, secondary_email, secondary_phone, mc_code } = req.body;
-  
   const existingCarrier = await Carrier.findOne({mc_code});
     if (existingCarrier) {
     return res.status(200).json({
@@ -15,7 +14,6 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
       message:"MC code already exists. Please use a different MC code." 
     });
   }
-
   let carrierID;
   let isUnique = false;
   while (!isUnique) {
@@ -106,9 +104,8 @@ exports.deleteCarrier = catchAsync(async (req, res) => {
 exports.updateCarrier = catchAsync(async (req, res, next) => {
   try { 
     const { mc_code,  name, phone, email, location, country, state, city, zipcode, secondary_email, secondary_phone } = req.body;
-     
     if (mc_code) {
-      const existingCarrier = await Carrier.findOne({ mc_code: mc_code, _id: { $ne: req.params.id } });
+      const existingCarrier = await Carrier.findOne({ mc_code: mc_code, _id: {$ne: req.params.id }});
       if (existingCarrier) {
         return res.status(200).send({
           status: false,
@@ -116,20 +113,19 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
         });
       }
     }
-
     const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, {
-      name: name,
-      email: email,
-      location: location,
-      phone: phone,
-      country: country,
-      state: state,
-      city: city,
-      zipcode: zipcode,
-      mc_code: mc_code,
-      secondary_email: secondary_email,
-      secondary_phone: secondary_phone
-    }, {
+        name: name,
+        email: email,
+        location: location,
+        phone: phone,
+        country: country,
+        state: state,
+        city: city,
+        zipcode: zipcode,
+        mc_code: mc_code,
+        secondary_email: secondary_email,
+        secondary_phone: secondary_phone
+      },{
       new: true, 
       runValidators: true,
     });
@@ -145,9 +141,7 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
       error :updatedUser,
       message: "Carrier has been updated.",
     });
-
   } catch (error) {
-    console.log("error",error)
     res.send({
       status: false,
       error :error,
