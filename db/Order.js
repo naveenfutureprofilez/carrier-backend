@@ -13,9 +13,8 @@ const schema = new mongo.Schema({
         min: 0,
     },
     customer_order_no:  {
-        type:Number,
-        unique:true,
-        min: 0,
+        type:String,
+        require:true,
     }, 
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'customers'},
     shipping_details : [],

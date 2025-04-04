@@ -65,23 +65,26 @@ exports.create_order = catchAsync(async (req, res) => {
 });
 
 exports.order_listing = catchAsync(async (req, res) => {
-   let Query;
-   if(req.user && req.user.role == 1){
-      Query = new APIFeatures(
-         Order.find({
-            deletedAt : null || '',
-            created_by : req.user._id
-         }).populate(['created_by', 'customer', 'carrier']),
+
+      const { search } = req.query;
+      const queryObj = {
+         $or: [{ deletedAt: null }]
+      };
+      if (req.user && req.user.is_admin == 1 && req.user.role == 3) {
+      }  else {
+         queryObj.created_by = req.user._id;
+      }
+
+      if (search && search.length >1) {
+         const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
+         queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
+      }
+      
+      let Query = new APIFeatures(
+         Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
          req.query
       ).sort();
-   } else { 
-      Query = new APIFeatures(
-         Order.find({
-            deletedAt : null || '',
-         }).populate(['created_by', 'customer', 'carrier']),
-         req.query
-      ).sort();
-   }
+    
       
   const { query, page, limit, totalPages } = await Query.paginate();
   const data = await query;
