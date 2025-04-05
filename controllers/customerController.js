@@ -63,23 +63,31 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
 });
 
 exports.customers_listing = catchAsync(async (req, res) => {
-  let Query;
-  if(req.user && req.user.is_admin == 1){
-    Query = new APIFeatures(
-      Customer.find({
-        deletedAt : null || ''
-      }).populate('assigned_to'),
-      req.query
-    ).sort();
-  } else {
-    Query = new APIFeatures(
-      Customer.find({
-        assigned_to : req.user._id,
-        deletedAt : null || ''
-      }).populate('assigned_to'),
-      req.query
-    ).sort();
+
+  const { search } = req.query;
+  const queryObj = {
+    $or: [{ deletedAt: null }]
+  };
+
+  if (req.user && req.user.is_admin == 1 && req.user.role == 3) {
+  }  else {
+     queryObj.assigned_to = req.user._id;
   }
+
+  if (search && search.length >1) {
+    const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const isNumber = !isNaN(search);
+    if (isNumber) {
+      queryObj.mc_code = { $regex: new RegExp(safeSearch, 'i') };
+    } else {
+      queryObj.name = { $regex: new RegExp(safeSearch, 'i') };
+    }
+  }
+
+  let Query = new APIFeatures(
+    Customer.find(queryObj).populate('assigned_to'),
+    req.query
+  ).sort();
      
   const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
   const data = await query;

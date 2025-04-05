@@ -51,9 +51,23 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
 });
 
 exports.carriers_listing = catchAsync(async (req, res) => {
-    let Query = new APIFeatures(Carrier.find({
-        deletedAt : null || '',
-    }).populate('created_by'), req.query ).sort();
+
+    const { search } = req.query;
+    const queryObj = {
+      $or: [{ deletedAt: null }]
+    };
+
+    if (search && search.length >1) {
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const isNumber = !isNaN(search);
+      if (isNumber) {
+        queryObj.mc_code = { $regex: new RegExp(safeSearch, 'i') };
+      } else {
+        queryObj.name = { $regex: new RegExp(safeSearch, 'i') };
+      }
+    }
+
+    let Query = new APIFeatures(Carrier.find(queryObj).populate('created_by'), req.query ).sort();
     const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
     const data = await query;
     res.json({
