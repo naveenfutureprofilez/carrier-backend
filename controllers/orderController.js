@@ -66,26 +66,25 @@ exports.create_order = catchAsync(async (req, res) => {
 
 exports.order_listing = catchAsync(async (req, res) => {
 
-      const { search } = req.query;
-      const queryObj = {
-         $or: [{ deletedAt: null }]
-      };
-      if (req.user && req.user.is_admin == 1 && req.user.role == 3) {
-      }  else {
-         queryObj.created_by = req.user._id;
-      }
+   const { search } = req.query;
+   const queryObj = {
+      $or: [{ deletedAt: null }]
+   };
+   if (req.user && req.user.role !== 1) {
+   }  else {
+      queryObj.created_by = req.user._id;
+   }
 
-      if (search && search.length >1) {
-         const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
-         queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
-      }
-      
-      let Query = new APIFeatures(
-         Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
-         req.query
-      ).sort();
-    
-      
+   if (search && search.length >1) {
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
+      queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
+   }
+   
+   let Query = new APIFeatures(
+      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      req.query
+   ).sort();
+   
   const { query, page, limit, totalPages } = await Query.paginate();
   const data = await query;
   res.json({
@@ -99,15 +98,19 @@ exports.order_listing = catchAsync(async (req, res) => {
 
 exports.order_listing_account = catchAsync(async (req, res) => {
    try {
+
       const { search } = req.query;
-      let filter = { deletedAt: { $in: [null, ""] } };
-      if (search) {
-         filter.$or = [
-            { customer_order_no: { $regex: search } },
-         ];
+      const queryObj = {
+         $or: [{ deletedAt: null }]
+      };
+
+      if (search && search.length >1) {
+         const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
+         queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
       }
+      
       const Query = new APIFeatures(
-         Order.find(filter).populate(["created_by", "customer", "carrier"]),
+         Order.find(queryObj).populate(["created_by", "customer", "carrier"]),
          req.query
       ).sort();
 
