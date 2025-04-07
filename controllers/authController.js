@@ -426,15 +426,13 @@ const resetpassword = catchAsync ( async (req, res, next) => {
 
 const addCompanyInfo = catchAsync ( async (req, res, next) => {
   const {name, email, phone, address, companyID} = req.body;
-  console.log("companyID",companyID);
-  // return false;
   if(companyID){
     const existing = await Company.findOne({companyID : companyID});
     if(existing){
-      existing.name = name;
-      existing.email = email;
-      existing.address = address;
-      existing.phone = phone;
+      existing.name = name !== '' || name !== undefined ? name : existing.name;
+      existing.email = email !== '' || email !== undefined ? email : existing.email;
+      existing.address = address  !== '' || address !== undefined ? address : existing.address;
+      existing.phone = phone !== '' || phone !== undefined ? phone : existing.phone;
       await existing.save();
       return res.send({
         status: true,
