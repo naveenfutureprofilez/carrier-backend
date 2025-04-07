@@ -238,7 +238,6 @@ const profile = catchAsync ( async (req, res) => {
 
 const employeesLisiting = catchAsync ( async (req, res) => {
   let lists;
-  console.log("isSuper",req.user)
   if(req.user && req.user.isSuper === '1'){
      lists = await User.find({isSuper: {$ne:1}});
   } else {
