@@ -39,6 +39,10 @@ const schema = new mongoose.Schema({
         type: Number,
         default:0
     },
+    isSuper: {
+        type: String,
+        default:0
+    },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     password: {
         type: String,

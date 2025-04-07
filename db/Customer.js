@@ -4,9 +4,8 @@ const schema = new mongoose.Schema({
         type: String,
         required: [true, 'Please enter customer name.'],
     },
-    mc_code: {
+    customerCode: {
         type: String,
-        required: [true, 'Please enter mc code.'],
     },
     secondary_phone: {
         type: String,

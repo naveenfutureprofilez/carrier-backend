@@ -9,6 +9,7 @@ const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
 const SECRET_ACCESS = process.env && process.env.SECRET_ACCESS || "MYSECRET";
 const bcrypt = require('bcrypt');
+const Company = require("../db/Company");
 
 const signToken = async (id) => {
   const token = jwt.sign(
@@ -220,10 +221,12 @@ const login = catchAsync ( async (req, res, next) => {
 });
 
 const profile = catchAsync ( async (req, res) => {
+  const company = await Company.findOne({});
   if(req.user){
      res.status(200).json({
       status:true,
       user : req.user,
+      company : company,
     });
   } else {
     res.status(200).json({
@@ -234,7 +237,13 @@ const profile = catchAsync ( async (req, res) => {
 });
 
 const employeesLisiting = catchAsync ( async (req, res) => {
-  const lists = await User.find({is_admin: {$ne:1}});
+  let lists;
+  console.log("isSuper",req.user)
+  if(req.user && req.user.isSuper === '1'){
+     lists = await User.find({isSuper: {$ne:1}});
+  } else {
+     lists = await User.find({is_admin: {$ne:1}});
+  }
   if(lists){
      res.status(200).json({
       status:true,
@@ -418,4 +427,42 @@ const resetpassword = catchAsync ( async (req, res, next) => {
   }); 
 });
 
-module.exports = { suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };
+
+const addCompanyInfo = catchAsync ( async (req, res, next) => {
+  const {name, email, phone, address, companyID} = req.body;
+  console.log("companyID",companyID);
+  // return false;
+  if(companyID){
+    const existing = await Company.findOne({companyID : companyID});
+    if(existing){
+      existing.name = name;
+      existing.email = email;
+      existing.address = address;
+      existing.phone = phone;
+      await existing.save();
+      return res.send({
+        status: true,
+        company :existing,
+        message: "Details has been updated.",
+      });
+    }
+  }
+  await Company.syncIndexes();
+  Company.create({
+    name: name,
+    email: email,
+    address: address,
+    phone: phone,
+  }).then(result => {
+    res.send({
+      status: true,
+      company :result,
+      message: "Details has been updated.",
+    });
+  }).catch(err => {
+    JSONerror(res, err, next);
+    logger(err);
+  });
+});
+
+module.exports = {addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };

@@ -6,42 +6,41 @@ const logger = require("../utils/logger");
 
 exports.addCustomer = catchAsync(async (req, res, next) => {
   const { name, phone, 
-    mc_code, 
     assigned_to,
     secondary_email,
     secondary_phone,
     email, address, country, state, city, zipcode } = req.body;
 
   const existingCustomer = await Customer.findOne({ 
-    $or: [{ mc_code }, { email }] 
+    $or: [{ phone }, { email }] 
   });
 
   if (existingCustomer) {
     return res.status(200).json({
       status: false,
-      message: existingCustomer.mc_code === mc_code 
-        ? "MC code exists. Please use a different MC code." 
+      message: existingCustomer.phone === phone 
+        ? "Phone number exists. Please use a different phone number." 
         : "Email address already exists. Please use a different email.",
     });
   }
 
-  // let customerID;
-  // let isUnique = false;
-  // while (!isUnique) {
-  //    customerID = `CT_ID${Math.floor(10000 + Math.random() * 90000)}`;
-  //    const existingUser = await Customer.findOne({ customerID });
-      
-  //    if (!existingUser) {
-  //       isUnique = true;
-  //    }
-  // }
+  let customerCode;
+  let isUnique = false;
+  while (!isUnique) {
+    customerCode = `${Math.floor(10000 + Math.random() * 90000)}`;
+    const existingUser = await Customer.findOne({ customerCode });
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
+
  await Customer.syncIndexes();
  Customer.create({
    name: name,
    email: email,
    secondary_email: secondary_email,
    secondary_phone: secondary_phone,
-   mc_code: mc_code,
+   customerCode: customerCode,
    phone: phone,
    address: address,
    country: country,
@@ -78,7 +77,7 @@ exports.customers_listing = catchAsync(async (req, res) => {
     const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const isNumber = !isNaN(search);
     if (isNumber) {
-      queryObj.mc_code = { $regex: new RegExp(safeSearch, 'i') };
+      queryObj.customerCode = { $regex: new RegExp(safeSearch, 'i') };
     } else {
       queryObj.name = { $regex: new RegExp(safeSearch, 'i') };
     }
