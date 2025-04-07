@@ -94,7 +94,6 @@ const editUser = catchAsync(async (req, res, next) => {
   });
 });
 
-
 const suspandUser = catchAsync(async (req, res, next) => {
   if(req.user && req.user.is_admin !== 1){
     return res.json({
@@ -117,7 +116,6 @@ const suspandUser = catchAsync(async (req, res, next) => {
     logger(err);
   });
 });
-
 
 const signup = catchAsync(async (req, res, next) => {
   const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
@@ -425,7 +423,6 @@ const resetpassword = catchAsync ( async (req, res, next) => {
     message:"Password changed successfully.",
   }); 
 });
-
 
 const addCompanyInfo = catchAsync ( async (req, res, next) => {
   const {name, email, phone, address, companyID} = req.body;
