@@ -68,7 +68,7 @@ exports.customers_listing = catchAsync(async (req, res) => {
     $or: [{ deletedAt: null }]
   };
 
-  if (req.user && req.user.is_admin == 1 && req.user.role == 3) {
+  if (req.user && req.user.is_admin === 1 && req.user.role === 3) {
   }  else {
      queryObj.assigned_to = req.user._id;
   }

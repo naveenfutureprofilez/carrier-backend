@@ -189,6 +189,7 @@ const login = catchAsync ( async (req, res, next) => {
       return next(new AppError("Email and password is required !!", 401))
    }
     const user = await User.findOne({ email }, { _id: 1, password: 1, status: 1, corporateID: 1 }).select('+password').lean();
+    
     if (!user) {
         return res.status(200).json({ status: false, message: "Invalid Details" });
     } 
@@ -196,6 +197,8 @@ const login = catchAsync ( async (req, res, next) => {
     if (user.status === 'inactive') {
         return res.status(200).json({ status: false, message: "Your account is suspended!" });
     }
+    const pp= await bcrypt.compare(password, user.password)
+    console.log("await bcrypt.compare(password", pp);
 
    if((user.corporateID !== corporateID) || !user || !(await bcrypt.compare(password, user.password))){
     res.status(200).json({
@@ -459,4 +462,41 @@ const addCompanyInfo = catchAsync ( async (req, res, next) => {
   });
 });
 
-module.exports = {addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };
+const changePassword = async (req, res) => {
+    try {
+        const { id, password } = req.body;
+
+        // 1. Find the user with password field included
+        const user = await User.findById(id).select('+password');
+        if (!user) return res.status(200).json({ 
+          status: false,
+          message: 'User not found.' 
+        });
+
+        // // 2. Check if current password matches
+        // const isMatch = await user.checkPassword(password, user.password);
+        // if (!isMatch) return res.status(401).json({ 
+        //   status: false,
+        //   message: 'Current password is incorrect.'
+        // });
+
+        user.password = password;
+        user.changedPasswordAt = Date.now();
+        await user.save();
+
+        res.status(200).json({ 
+          status:true,
+          message: 'Password updated successfully.'
+         });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ 
+          status:false,
+          message: 'Server error.'
+         });
+    }
+};
+
+
+module.exports = { changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };

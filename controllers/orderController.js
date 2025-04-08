@@ -248,7 +248,7 @@ exports.addnote = catchAsync(async (req, res) => {
 
 exports.overview = catchAsync(async (req, res) => {
    let totalLoads, intransitLoads, completedLoads, pendingLoads, pendingPayments;
-   if(req.user.role == 1){
+   if(req.user.role === 1){
       totalLoads = await Order.countDocuments({created_by: req.user._id});
       intransitLoads = await Order.countDocuments({ order_status: 'intransit', created_by: req.user._id});
       completedLoads = await Order.countDocuments({ order_status: 'completed', created_by: req.user._id});
