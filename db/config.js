@@ -7,9 +7,9 @@ async function connectDB() {
             useNewUrlParser: true,
             useUnifiedTopology: true, 
             maxPoolSize: 30,
-            serverSelectionTimeoutMS: 60000,    // 60s to select server
-            socketTimeoutMS: 120000,            // 120s before closing sockets
-            connectTimeoutMS: 120000,           // 120s to establish connection
+            serverSelectionTimeoutMS: 60000, 
+            socketTimeoutMS: 120000, 
+            connectTimeoutMS: 120000,  
             bufferCommands: true,  
             autoIndex: true,
             keepAlive: true, 

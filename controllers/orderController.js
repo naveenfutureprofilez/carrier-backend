@@ -80,13 +80,20 @@ exports.order_listing = catchAsync(async (req, res) => {
       queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
    }
    
-   let Query = new APIFeatures(
+    // Initial query with population
+    let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
       req.query
-   ).sort();
-   
-  const { query, page, limit, totalPages } = await Query.paginate();
-  const data = await query;
+   ).sort({ createdAt: 1 });
+
+   const { query, page, limit, totalPages } = await Query.paginate();
+   let data = await query;
+
+   const statusPriority = { added: 0, intransit: 1, completed: 2 };
+   data.sort((a, b) => {
+      return statusPriority[a.order_status] - statusPriority[b.order_status];
+   });
+
   res.json({
     status: true,
     orders: data,
@@ -109,13 +116,28 @@ exports.order_listing_account = catchAsync(async (req, res) => {
          queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
       }
       
-      const Query = new APIFeatures(
-         Order.find(queryObj).populate(["created_by", "customer", "carrier"]),
+
+      // Initial query with population
+      let Query = new APIFeatures(
+         Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
          req.query
-      ).sort();
+      ).sort({ createdAt: 1 });
 
       const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
-      const data = await query;
+      let data = await query;
+
+      const statusPriority = { added: 0, intransit: 1, completed: 2 };
+      data.sort((a, b) => {
+         return statusPriority[a.order_status] - statusPriority[b.order_status];
+      });
+      
+      // const Query = new APIFeatures(
+      //    Order.find(queryObj).populate(["created_by", "customer", "carrier"]),
+      //    req.query
+      // ).sort();
+
+      // const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
+      // const data = await query;
 
       res.json({
          status: true,
