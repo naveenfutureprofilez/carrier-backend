@@ -42,32 +42,58 @@
 
 
 
-
 const mongoose = require('mongoose');
+const User = require('./Users');
+
+// Ensure you have the DB_URL_OFFICE environment variable set
 const uri = process.env.DB_URL_OFFICE;
 
-const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
+const clientOptions = {
+  serverApi: {
+    version: '1',
+    strict: true,
+    deprecationErrors: true,
+  },
+};
 
 async function run() {
   try {
-    // Create a Mongoose client with a MongoClientOptions object to set the Stable API version
+    if (!uri) {
+      console.error("❌ DB_URL_OFFICE environment variable is not set.");
+      return;
+    }
+
+    mongoose.connection.on('connecting', () => {
+      console.log('⏳ Connecting to MongoDB...');
+    });
+
+    mongoose.connection.on('connected', () => {
+      console.log('✅ MongoDB connected successfully!');
+    });
+
+    mongoose.connection.on('error', (err) => {
+      console.error('❌ MongoDB connection error:', err);
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      console.log('❌ MongoDB disconnected.');
+    });
     await mongoose.connect(uri, clientOptions);
-    console.log("✅ Connected to MongoDB!"); // Log when connected
     await mongoose.connection.db.admin().command({ ping: 1 });
     console.log("✅ Pinged your deployment. You successfully connected to MongoDB!");
-
-    // Perform your database operations here, now that you are connected
-    // Example:
-    // const User = mongoose.model('User', new mongoose.Schema({ name: String }));
-    // const users = await User.find({});
-    // console.log("Users:", users);
-
+    const newUser = await User.findOne({});
+    console.log("✅ Found users:", newUser);
   } catch (error) {
-    console.error("❌ Error connecting to MongoDB:", error);
+    console.error("❌ Error during database operation or connection:", error);
   } finally {
     // Ensures that the client will close when you finish/error
-    await mongoose.disconnect();
-    console.log("❌ DISCONNECTED");
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+      console.log("❌ Mongoose disconnected.");
+    } else {
+      console.log("⚠️ Mongoose was not connected, no need to disconnect.");
+    }
   }
 }
+
 run().catch(console.dir);
