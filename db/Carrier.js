@@ -14,7 +14,8 @@ const schema = new mongoose.Schema({
     },
     email: {
         type: String,
-        unique: true
+        unique: true,
+        required: [true, 'Please enter carrier email address.'],
     },
     secondary_phone: {
         type: String,
@@ -24,18 +25,23 @@ const schema = new mongoose.Schema({
     },
     country: {
         type: String,
+        required: [true, 'Please enter carrier country.'],
     },
     state: {
         type: String,
+        required: [true, 'Please enter carrier state.'],
     },
     city: {
         type: String,
+        required: [true, 'Please enter carrier city.'],
     },
     zipcode: {
         type: String,
+        required: [true, 'Please enter carrier zipcode.'],
     },
     location: {
         type: String,
+        required: [true, 'Please enter carrier location.'],
     },
     carrierID: {
         type: String,

@@ -20,7 +20,7 @@ const schema = new mongoose.Schema({
     status: {
         type: String,
         default: "active",
-        index: true // ✅ Index for efficient searching
+        index: true 
     },
     staff_commision: {
         type: Number,
@@ -33,7 +33,7 @@ const schema = new mongoose.Schema({
     },
     role: {
         type: Number,
-        default:1 // 1 Staff - 2 Accounting
+        default:1,
     },
     is_admin: {
         type: Number,
@@ -61,13 +61,22 @@ const schema = new mongoose.Schema({
     // },
 
     // additonal fields
-    phone: String,
-    country: String,
-    address: String,
+    phone: {
+        type:String,
+        required:[true, 'Please enter your phone number.'],
+    },
+    country: {
+        type:String,
+        required:[true, 'Please enter your country.'],
+    },
+    address: {
+        type:String,
+        required:[true, 'Please enter your address.'],
+    },
 
     createdAt: {
-    type: Date,
-    default: Date.now()
+        type: Date,
+        default: Date.now()
     },
     changedPasswordAt: Date,
     passwordResetToken: String,

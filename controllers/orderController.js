@@ -1,68 +1,74 @@
-const User = require("../db/Users");
-const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 const APIFeatures  = require("../utils/APIFeatures");
 const Order = require("../db/Order");
 const Files = require("../db/Files");
+const JSONerror = require("../utils/jsonErrorHandler");
 
-exports.create_order = catchAsync(async (req, res) => {
-   const { company_name,
-      customer_order_no,
-      customer,
-      shipping_details,
-      carrier,
-      carrier_amount,
-      carrier_amount_currency,
-      payment_status,
-      payment_status_date,
-      payment_method,
-      carrier_payment_status,
-      carrier_payment_date,
-      carrier_payment_method,
-      revenue_items,
-      revenue_currency,
-      totalDistance,
-      total_amount,
-      order_status,
-    } = req.body;
+exports.create_order = catchAsync(async (req, res, next) => {
+   try {
 
-   const lastOrder = await Order.findOne().sort({ serial_no: -1 });
-   const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1;
-   const order = await Order.create({
-      company_name,
-      customer : customer,
-      created_by : req.user._id,
-      serial_no : parseInt(newOrderId),
-      customer_order_no : parseInt(customer_order_no),
-      shipping_details,
-      carrier,
-      total_amount,
-      carrier_amount, totalDistance,
-      carrier_amount_currency,
-      payment_status,
-      payment_status_date,
-      payment_method,
-      carrier_payment_status,
-      carrier_payment_date,
-      carrier_payment_method,
-      revenue_items,
-      revenue_currency,
-      order_status
-   });
+      const { company_name,
+         customer_order_no,
+         customer,
+         shipping_details,
+         carrier,
+         carrier_amount,
+         carrier_amount_currency,
+         payment_status,
+         payment_status_date,
+         payment_method,
+         carrier_payment_status,
+         carrier_payment_date,
+         carrier_payment_method,
+         revenue_items,
+         revenue_currency,
+         totalDistance,
+         total_amount,
+         order_status,
+       } = req.body;
 
-   if(!order){
-      res.json({
-         status:false,
-         message: "Failed to create order."
+       console.log("req.body", req.body);
+   
+      const lastOrder = await Order.findOne().sort({ serial_no: -1 });
+      const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1;
+      const order = await Order.create({
+         company_name,
+         customer : customer,
+         created_by : req.user._id,
+         serial_no : parseInt(newOrderId),
+         customer_order_no : parseInt(customer_order_no),
+         shipping_details,
+         carrier,
+         total_amount,
+         carrier_amount, totalDistance,
+         carrier_amount_currency,
+         payment_status,
+         payment_status_date,
+         payment_method,
+         carrier_payment_status,
+         carrier_payment_date,
+         carrier_payment_method,
+         revenue_items,
+         revenue_currency,
+         order_status
       });
+   
+      if(!order){
+         res.json({
+            status:false,
+            message: "Failed to create order."
+         });
+      }
+      res.json({
+         status:true,
+         order,
+         message: "Order has been created."
+      });
+   } catch (err) {
+      JSONerror(res, err, next);
    }
-   res.json({
-      status:true,
-      order,
-      message: "Order has been created."
-   });
-
 });
+
 
 exports.order_listing = catchAsync(async (req, res) => {
 

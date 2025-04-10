@@ -3,7 +3,7 @@ const mongo = require('mongoose');
 const schema = new mongo.Schema({
     company_name:{ 
         type:String,
-        require:true,
+        required:true,
     },
     serial_no:  {
         type: Number,
@@ -12,13 +12,26 @@ const schema = new mongo.Schema({
     },
     customer_order_no:  {
         type:String,
-        require:true,
+        minlength: 1,
+        required:[true, 'Please enter customer order number.'],
     }, 
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'customers'},
+    customer: { 
+        type: mongoose.Schema.Types.ObjectId, ref: 'customers',
+        required:[true, 'Please enter customer details.'],
+    },
     shipping_details : [],
-    carrier: { type: mongoose.Schema.Types.ObjectId, ref: 'carriers'},
-    carrier_amount:  {type:Number},
-    carrier_amount_currency:  {type:String},
+    carrier: { 
+        type: mongoose.Schema.Types.ObjectId, ref: 'carriers',
+        required:[true, 'Please enter carrier details.'],
+    },
+    carrier_amount:  {
+        type:Number,
+        required:[true, 'Please enter selling amount of this order.'],
+    },
+    carrier_amount_currency:  {
+        type:String,
+        default:"cad",
+    },
     payment_status :{
         type:String,
         default:"pending",
@@ -27,7 +40,7 @@ const schema = new mongo.Schema({
         type: Date
     },
     payment_method :{
-        type: String
+        type: String,
     },
     carrier_payment_status :{
         type:String,
@@ -40,16 +53,23 @@ const schema = new mongo.Schema({
         type: String
     },
     revenue_items: [],
-    revenue_currency:String,
+    revenue_currency:{
+       type: String,
+       default:"cad",
+    },
     order_status :{
         type: String,
         default:"added",
     },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     totalDistance : { 
-        type: Number
+        type: Number,
+        required:[true, 'Please enter total distance of this order.'],
     },
-    total_amount: {type:Number},
+    total_amount: {
+        type:Number,
+        required:[true, 'Please enter total amount of this order.'],
+    },
     notes : {
         type: String,
     },

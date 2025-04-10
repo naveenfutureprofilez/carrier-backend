@@ -16,24 +16,31 @@ const schema = new mongoose.Schema({
     },
     email: {
         type: String,
+        unique: true,
+        required: [true, 'Please enter customer email address.'],
     },
     secondary_email: {
         type: String,
     },
     address: {
         type: String,
+        required: [true, 'Please enter customer address.'],
     },
     country: {
         type: String,
+        required: [true, 'Please enter customer country.'],
     },
     state: {
         type: String,
+        required: [true, 'Please enter customer state.'],
     },
     city: {
         type: String,
+        required: [true, 'Please enter customer city.'],
     },
     zipcode: {
         type: String,
+        required: [true, 'Please enter customer zipcode.'],
     },
     createdAt: {
        type: Date,
