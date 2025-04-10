@@ -44,7 +44,7 @@
 
 
 const mongoose = require('mongoose');
-const uri = "mongodb+srv://imaanvirk1:TFNrwarPpYrJw7yZ@cluster0.8l1eszr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+const uri = process.env.DB_URL_OFFICE;
 
 const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
 
