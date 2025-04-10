@@ -52,12 +52,22 @@ async function run() {
   try {
     // Create a Mongoose client with a MongoClientOptions object to set the Stable API version
     await mongoose.connect(uri, clientOptions);
+    console.log("✅ Connected to MongoDB!"); // Log when connected
     await mongoose.connection.db.admin().command({ ping: 1 });
     console.log("✅ Pinged your deployment. You successfully connected to MongoDB!");
+
+    // Perform your database operations here, now that you are connected
+    // Example:
+    // const User = mongoose.model('User', new mongoose.Schema({ name: String }));
+    // const users = await User.find({});
+    // console.log("Users:", users);
+
+  } catch (error) {
+    console.error("❌ Error connecting to MongoDB:", error);
   } finally {
     // Ensures that the client will close when you finish/error
     await mongoose.disconnect();
-    // console.error("❌ DISCONNECTED");
+    console.log("❌ DISCONNECTED");
   }
 }
 run().catch(console.dir);
