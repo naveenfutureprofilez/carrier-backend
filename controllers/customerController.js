@@ -101,6 +101,22 @@ exports.customers_listing = catchAsync(async (req, res) => {
   });
 });
 
+exports.updateDetails = catchAsync(async (req, res, next) => {
+  const customer = await Customer.findById(req.params.id).populate('assigned_to');
+  if(!customer){ 
+    res.send({
+      status: false,
+      result : null,
+      message: "Customer not found",
+    });
+  } 
+  res.send({
+    status: true,
+    result : customer,
+    message: "Customer has been updated.",
+  });
+});
+
 exports.updateCustomer = catchAsync(async (req, res, next) => {
   const { name, secondary_email, secondary_phone, mc_code, phone, email, address, country, state, city, zipcode, assigned_to } = req.body;
   

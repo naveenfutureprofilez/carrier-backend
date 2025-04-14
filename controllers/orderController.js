@@ -27,8 +27,6 @@ exports.create_order = catchAsync(async (req, res, next) => {
          order_status,
        } = req.body;
 
-       console.log("req.body", req.body);
-   
       const lastOrder = await Order.findOne().sort({ serial_no: -1 });
       const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1;
       const order = await Order.create({
@@ -69,24 +67,29 @@ exports.create_order = catchAsync(async (req, res, next) => {
    }
 });
 
-
-exports.order_listing = catchAsync(async (req, res) => {
-
-   const { search } = req.query;
+exports.order_listing = catchAsync(async (req, res, next) => {
+   const { search, customer_id, carrier_id, sortby } = req.query;
    const queryObj = {
       $or: [{ deletedAt: null }]
    };
+
+   if(customer_id){
+      queryObj.customer = customer_id;
+   }
+
+   if(carrier_id){
+      queryObj.carrier = carrier_id;
+   }
+
    if (req.user && req.user.role !== 1) {
    }  else {
       queryObj.created_by = req.user._id;
    }
 
    if (search && search.length >1) {
-      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
    }
-   
-    // Initial query with population
     let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
       req.query
@@ -95,10 +98,12 @@ exports.order_listing = catchAsync(async (req, res) => {
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   const statusPriority = { added: 0, intransit: 1, completed: 2 };
-   data.sort((a, b) => {
-      return statusPriority[a.order_status] - statusPriority[b.order_status];
-   });
+   if(sortby !== 'date'){
+      const statusPriority = { added: 0, intransit: 1, completed: 2 };
+      data.sort((a, b) => {
+         return statusPriority[a.order_status] - statusPriority[b.order_status];
+      });
+   }
 
   res.json({
     status: true,
@@ -122,8 +127,6 @@ exports.order_listing_account = catchAsync(async (req, res) => {
          queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
       }
       
-
-      // Initial query with population
       let Query = new APIFeatures(
          Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
          req.query
@@ -136,14 +139,6 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       data.sort((a, b) => {
          return statusPriority[a.order_status] - statusPriority[b.order_status];
       });
-      
-      // const Query = new APIFeatures(
-      //    Order.find(queryObj).populate(["created_by", "customer", "carrier"]),
-      //    req.query
-      // ).sort();
-
-      // const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
-      // const data = await query;
 
       res.json({
          status: true,
