@@ -28,13 +28,13 @@ exports.create_order = catchAsync(async (req, res, next) => {
        } = req.body;
 
       const lastOrder = await Order.findOne().sort({ serial_no: -1 });
-      const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1;
+      const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1000;
       const order = await Order.create({
          company_name,
          customer : customer,
          created_by : req.user._id,
          serial_no : parseInt(newOrderId),
-         customer_order_no : parseInt(customer_order_no),
+         // customer_order_no : parseInt(customer_order_no),
          shipping_details,
          carrier,
          total_amount,
