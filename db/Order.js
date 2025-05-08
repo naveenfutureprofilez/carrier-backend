@@ -38,8 +38,28 @@ const schema = new mongo.Schema({
         type:Number,
         required:[true, 'Please enter total amount of this order.'],
     },
-    
-    
+    lock : {
+        type: Boolean,
+        default: false
+    },
+
+    customer_payment_approved : {
+        type: Number,
+        default: 0 // 0 not approved, 1 approved, 2 rejected
+    },
+    customer_payment_approved_by_admin : {
+        type: Number,
+        default: 0 // 0 not approved, 1 approved, 2 rejected
+    },
+    carrier_payment_approved : {
+        type: Number,
+        default: 0 // 0 not approved, 1 approved, 2 rejected
+    },
+    carrier_payment_approved_by_admin : {
+        type: Number,
+        default: 0 // 0 not approved, 1 approved, 2 rejected
+    },
+
     // Carrier
     carrier: { 
         type: mongoose.Schema.Types.ObjectId, ref: 'carriers',
