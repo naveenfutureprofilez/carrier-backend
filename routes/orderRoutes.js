@@ -14,5 +14,13 @@ router.route('/account/order-status/:id').post(validateToken, orderController.up
 router.route('/account/order/addnote/:id').post(validateToken, orderController.addnote);
 
 router.route('/overview').get(validateToken, orderController.overview);
+router.route('/cummodityLists').get(validateToken, orderController.cummodityLists);
+router.route('/removeCummodity').post(validateToken, orderController.removeCummodity);
+router.route('/addCummodity').post(validateToken, orderController.addCummodity);
+
+
+router.route('/equipmentLists').get(validateToken, orderController.equipmentLists);
+router.route('/removeEquipment').post(validateToken, orderController.removeEquipment);
+router.route('/addEquipment').post(validateToken, orderController.addEquipment);
 
 module.exports = router;

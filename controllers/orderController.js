@@ -3,27 +3,38 @@ const APIFeatures  = require("../utils/APIFeatures");
 const Order = require("../db/Order");
 const Files = require("../db/Files");
 const JSONerror = require("../utils/jsonErrorHandler");
+const Commudity = require("../db/Commudity");
+const Equipment = require("../db/Equipment");
 
 exports.create_order = catchAsync(async (req, res, next) => {
    try {
 
       const { company_name,
          customer_order_no,
-         customer,
          shipping_details,
+
+         // Customer
+         customer,
+         customer_payment_status,
+         customer_payment_date,
+         customer_payment_method,
+         total_amount,
+
+         // Carrier
          carrier,
          carrier_amount,
-         carrier_amount_currency,
-         payment_status,
-         payment_status_date,
-         payment_method,
          carrier_payment_status,
          carrier_payment_date,
          carrier_payment_method,
+
+         
+         // Revennue
          revenue_items,
+         carrier_revenue_items,
          revenue_currency,
+
          totalDistance,
-         total_amount,
+
          order_status,
        } = req.body;
 
@@ -31,24 +42,28 @@ exports.create_order = catchAsync(async (req, res, next) => {
       const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1000;
       const order = await Order.create({
          company_name,
-         customer : customer,
-         created_by : req.user._id,
          serial_no : parseInt(newOrderId),
-         // customer_order_no : parseInt(customer_order_no),
          shipping_details,
-         carrier,
+
+         customer : customer,
+         customer_payment_status,
+         customer_payment_date,
+         customer_payment_method,
          total_amount,
-         carrier_amount, totalDistance,
-         carrier_amount_currency,
-         payment_status,
-         payment_status_date,
-         payment_method,
+
+         carrier,
+         carrier_amount, 
          carrier_payment_status,
          carrier_payment_date,
          carrier_payment_method,
+
          revenue_items,
+         carrier_revenue_items,
          revenue_currency,
-         order_status
+         totalDistance,
+         order_status,
+
+         created_by : req.user._id,
       });
    
       if(!order){
@@ -88,8 +103,12 @@ exports.order_listing = catchAsync(async (req, res, next) => {
 
    if (search && search.length >1) {
       const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
+      // queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
+      queryObj.serial_no = { $regex: new RegExp(safeSearch, 'i') };
    }
+
+    
+
     let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
       req.query
@@ -164,9 +183,9 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
       let order;
       if(req.params.type === 'customer'){
          order = await Order.findByIdAndUpdate(req.params.id, {
-            payment_status : status,
-            payment_status_date  : Date.now(),
-            payment_method : method,
+            customer_payment_status : status,
+            customer_payment_date  : Date.now(),
+            customer_payment_method : method,
             customer_payment_notes : notes
          }, {
            new: true, 
@@ -335,6 +354,105 @@ exports.order_docs = catchAsync(async (req, res) => {
       files: files,
    });
 });
+
+exports.addCummodity = catchAsync(async (req, res, next) => {
+   const { value } = req.body;
+   Commudity.create({
+      name: value,
+   }).then(result => {
+      res.send({
+      status: true,
+      message: "Commudity has been added.",
+   });
+   }).catch(err => {
+      JSONerror(res, err, next);
+      logger(err);
+   });
+});
+
+exports.removeCummodity = catchAsync(async (req, res, next) => {
+   const { id } = req.body;
+   Commudity.findByIdAndDelete(id)
+     .then(() => {
+       res.send({
+         status: true,
+         message: "Commudity has been permanently removed.",
+       });
+     })
+     .catch(err => {
+       JSONerror(res, err, next);
+       logger(err);
+     });
+ });
+
+ 
+
+exports.cummodityLists = catchAsync(async (req, res, next) => {
+   const list = await Commudity.find({});
+   const arr = [];
+   list.map((item) => {
+      arr.push({
+         value: item.name,
+         label: item.name,
+         _id: item._id,
+      });
+   })
+   res.send({
+      status: true,
+      list: arr ,
+   });
+});
+
+
+
+exports.addEquipment = catchAsync(async (req, res, next) => {
+   const { value } = req.body;
+   Equipment.create({
+      name: value,
+   }).then(result => {
+      res.send({
+      status: true,
+      message: "Equipment has been added.",
+   });
+   }).catch(err => {
+      JSONerror(res, err, next);
+      logger(err);
+   });
+});
+
+exports.removeEquipment = catchAsync(async (req, res, next) => {
+   const { id } = req.body;
+   console.log("id",id)
+   Equipment.findByIdAndDelete(id)
+     .then(() => {
+       res.send({
+         status: true,
+         message: "Equipment has been permanently removed.",
+       });
+     })
+     .catch(err => {
+       JSONerror(res, err, next);
+       logger(err);
+     });
+});
+
+ 
+exports.equipmentLists = catchAsync(async (req, res, next) => {
+   const list = await Equipment.find({});
+   const arr = [];
+   list.map((item) => {
+      arr.push({
+         value: item.name,
+         label: item.name,
+         _id: item._id,
+      });
+   })
+   res.send({
+      status: true,
+      list: arr ,
+   });
+});
+
 
 
  

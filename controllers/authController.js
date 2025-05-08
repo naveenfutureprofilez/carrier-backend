@@ -118,7 +118,7 @@ const suspandUser = catchAsync(async (req, res, next) => {
 });
 
 const signup = catchAsync(async (req, res, next) => {
-  const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
+  const { role, name, email, avatar, password, generateAutoPassword, staff_commision, position } = req.body;
   if(req.user && req.user.is_admin !== 1){
     return res.json({
       status : false,
@@ -162,6 +162,7 @@ const signup = catchAsync(async (req, res, next) => {
     phone: req.body.phone,
     address: req.body.address,
     role: role,
+    position:position,
     confirmPassword: generatedPassword,
   }).then(result => {
     result.password = undefined;
