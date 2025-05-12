@@ -37,8 +37,6 @@ const multerParse = multer({
   dest: uploadDir,
 });
 
-
-
 app.post("/cloud/upload/:id", validateToken, multerParse.fields([{name: "attachment",},]),
   async (req, res) => {
     const orderid = req.params.id; 

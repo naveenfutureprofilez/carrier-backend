@@ -6,13 +6,13 @@ const schema = new mongo.Schema({
     //     minlength: 1,
     //     required:[true, 'Please enter customer order number.'],
     // }, 
-
     company_name:{ 
         type:String,
         required:true,
     },
     serial_no:  {
-        type: Number,
+        type: String,
+        minlength: 1,
         unique:true,
         min: 0,
     },
@@ -133,18 +133,19 @@ const schema = new mongo.Schema({
 //     });
 //     return grossAmount;
 // });
-
-schema.virtual('profit').get(function () {
-    const total_amount = this.total_amount || 0;
-    const commission = total_amount * (this.created_by.staff_commision /100);
-    const actualProfit = total_amount - commission - this.carrier_amount;
-    return actualProfit;
+schema.virtual('commission').get(function () {
+    const totalAmount = this.total_amount || 0;
+    const staffCommissionRate = this.created_by?.staff_commision || 0;
+    return totalAmount * (staffCommissionRate / 100);
 });
 
-schema.virtual('commission').get(function () {
-    const total_amount = this.total_amount || 0;
-    const commission = total_amount * (this.created_by.staff_commision /100);
-    return commission;
+schema.virtual('profit').get(function () {
+    const totalAmount = this.total_amount || 0;
+    const carrierAmount = this.carrier_amount || 0;
+    const staffCommissionRate = this.created_by?.staff_commision || 0;
+    const commission = totalAmount * (staffCommissionRate / 100);
+    const profit = totalAmount - commission - carrierAmount;
+    return profit;
 });
 
 

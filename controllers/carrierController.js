@@ -14,6 +14,7 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
       message:"MC code already exists. Please use a different MC code." 
     });
   }
+
   let carrierID;
   let isUnique = false;
   while (!isUnique) {
@@ -23,6 +24,7 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
       isUnique = true;
     }
   }
+
   await Carrier.syncIndexes();
   Carrier.create({
     name: name,

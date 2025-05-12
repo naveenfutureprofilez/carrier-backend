@@ -5,6 +5,7 @@ const Files = require("../db/Files");
 const JSONerror = require("../utils/jsonErrorHandler");
 const Commudity = require("../db/Commudity");
 const Equipment = require("../db/Equipment");
+const Charges = require("../db/Charges");
 
 exports.create_order = catchAsync(async (req, res, next) => {
    try {
@@ -106,8 +107,6 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       // queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
       queryObj.serial_no = { $regex: new RegExp(safeSearch, 'i') };
    }
-
-    
 
     let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
@@ -355,6 +354,29 @@ exports.order_docs = catchAsync(async (req, res) => {
    });
 });
 
+exports.lockOrder = catchAsync(async (req, res) => {
+   const id = req.params.id;
+   const order = await Order.findById(id);
+   if(!order){ 
+      res.json({
+         status: false,
+         message: "Order not found."
+       });
+   }
+   if(order.lock){
+      order.lock = null;
+   } else {
+      order.lock = true
+   }
+   await order.save();
+   res.json({
+      status: true,
+      'Message': "Order locked status updated.",
+   });
+});
+
+
+
 exports.addCummodity = catchAsync(async (req, res, next) => {
    const { value } = req.body;
    Commudity.create({
@@ -383,9 +405,7 @@ exports.removeCummodity = catchAsync(async (req, res, next) => {
        JSONerror(res, err, next);
        logger(err);
      });
- });
-
- 
+});
 
 exports.cummodityLists = catchAsync(async (req, res, next) => {
    const list = await Commudity.find({});
@@ -403,8 +423,6 @@ exports.cummodityLists = catchAsync(async (req, res, next) => {
    });
 });
 
-
-
 exports.addEquipment = catchAsync(async (req, res, next) => {
    const { value } = req.body;
    Equipment.create({
@@ -419,7 +437,6 @@ exports.addEquipment = catchAsync(async (req, res, next) => {
       logger(err);
    });
 });
-
 exports.removeEquipment = catchAsync(async (req, res, next) => {
    const { id } = req.body;
    console.log("id",id)
@@ -435,8 +452,6 @@ exports.removeEquipment = catchAsync(async (req, res, next) => {
        logger(err);
      });
 });
-
- 
 exports.equipmentLists = catchAsync(async (req, res, next) => {
    const list = await Equipment.find({});
    const arr = [];
@@ -451,6 +466,91 @@ exports.equipmentLists = catchAsync(async (req, res, next) => {
       status: true,
       list: arr ,
    });
+});
+
+exports.addCharges = catchAsync(async (req, res, next) => {
+   const { value } = req.body;
+   Charges.create({
+      name: value,
+   }).then(result => {
+      res.send({
+      status: true,
+      message: "Charge item has been added.",
+   });
+   }).catch(err => {
+      JSONerror(res, err, next);
+      logger(err);
+   });
+});
+exports.removeCharge = catchAsync(async (req, res, next) => {
+   const { id } = req.body;
+   Charges.findByIdAndDelete(id)
+     .then(() => {
+       res.send({
+         status: true,
+         message: "Charge has been permanently removed.",
+       });
+     })
+     .catch(err => {
+       JSONerror(res, err, next);
+       logger(err);
+     });
+});
+
+exports.chargesLists = catchAsync(async (req, res, next) => {
+   const list = await Charges.find({});
+   const arr = [];
+   list.map((item) => {
+      arr.push({
+         value: item.name,
+         label: item.name,
+         _id: item._id,
+      });
+   })
+   res.send({
+      status: true,
+      list: arr ,
+   });
+});
+
+// Payments 
+exports.orderPayments = catchAsync(async (req, res, next) => {
+   const { search, customer_id, carrier_id, sortby } = req.query;
+   const queryObj = {
+      $or: [{ deletedAt: null }]
+   };
+
+   if(customer_id){
+      queryObj.customer = customer_id;
+   }
+
+   if(carrier_id){
+      queryObj.carrier = carrier_id;
+   }
+
+
+   let Query = new APIFeatures(
+      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      req.query
+   ).sort({ createdAt: 1 });
+
+   const { query, page, limit, totalPages } = await Query.paginate();
+   let data = await query;
+
+   if(sortby !== 'date'){
+      const statusPriority = { added: 0, intransit: 1, completed: 2 };
+      data.sort((a, b) => {
+         return statusPriority[a.order_status] - statusPriority[b.order_status];
+      });
+   }
+
+  res.json({
+    status: true,
+    orders: data,
+    page : page,
+    totalPages : totalPages,
+    message: data.length ? undefined : "No files found"
+  });
 });
 
 
