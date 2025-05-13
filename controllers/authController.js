@@ -79,6 +79,7 @@ const editUser = catchAsync(async (req, res, next) => {
     staff_commision : req.body.role === 1 ? req.body.staff_commision : null,
     country: req.body.country,
     phone: req.body.phone,
+    position: req.body.position,
     address: req.body.address,
     role: req.body.role,
   }).then(result => {

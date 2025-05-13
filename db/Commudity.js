@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
    name: { 
       type:String,
-      required:[true, 'Community name can not be empty.']
+      required:[true, 'Commodity name can not be empty.']
     },   
     createdAt: {
       type: Date,
