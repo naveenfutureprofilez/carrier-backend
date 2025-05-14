@@ -38,6 +38,7 @@ const schema = new mongoose.Schema({
         type: String,
         required: [true, 'Please enter customer city.'],
     },
+    
     zipcode: {
         type: String,
         required: [true, 'Please enter customer zipcode.'],

@@ -6,6 +6,19 @@ const JSONerror = require("../utils/jsonErrorHandler");
 const Commudity = require("../db/Commudity");
 const Equipment = require("../db/Equipment");
 const Charges = require("../db/Charges");
+const PaymentLogs = require("../db/PaymentLogs");
+async function CreatePaymentLog(user, order, status, method, type, approval) {
+   const payment = PaymentLogs.create({
+      order: order,
+      method: method,
+      status: status,
+      type: type,
+      approval: "approved",
+      updated_by: user,
+   });
+   console.log(payment);
+   return payment;
+}
 
 exports.create_order = catchAsync(async (req, res, next) => {
    try {
@@ -16,7 +29,6 @@ exports.create_order = catchAsync(async (req, res, next) => {
 
          // Customer
          customer,
-         customer_payment_status,
          customer_payment_date,
          customer_payment_method,
          total_amount,
@@ -24,7 +36,6 @@ exports.create_order = catchAsync(async (req, res, next) => {
          // Carrier
          carrier,
          carrier_amount,
-         carrier_payment_status,
          carrier_payment_date,
          carrier_payment_method,
 
@@ -47,14 +58,12 @@ exports.create_order = catchAsync(async (req, res, next) => {
          shipping_details,
 
          customer : customer,
-         customer_payment_status,
          customer_payment_date,
          customer_payment_method,
          total_amount,
 
          carrier,
          carrier_amount, 
-         carrier_payment_status,
          carrier_payment_date,
          carrier_payment_method,
 
@@ -180,26 +189,30 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
    try { 
       const { status, method, notes } = req.body;
       let order;
-      if(req.params.type === 'customer'){
-         order = await Order.findByIdAndUpdate(req.params.id, {
-            customer_payment_status : status,
-            customer_payment_date  : Date.now(),
-            customer_payment_method : method,
-            customer_payment_notes : notes
-         }, {
-           new: true, 
-           runValidators: true,
-         });
+      if(req.params.type === 'customer'){ 
+            order = await Order.findByIdAndUpdate(req.params.id, {
+               customer_payment_status : status,
+               customer_payment_date  : Date.now(),
+               customer_payment_method : method,
+               customer_payment_notes : notes,
+               customer_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
+            }, {
+              new: true, 
+              runValidators: true,
+            });
+         await CreatePaymentLog(req.user?._id, req.params.id, status, method, 'customer', req?.user?.is_admin == 1 ? 'admin' : null);
       } else { 
          order = await Order.findByIdAndUpdate(req.params.id, {
             carrier_payment_status :status,
             carrier_payment_date : Date.now(),
             carrier_payment_method : method,
-            carrier_payment_notes : notes
-         }, {
+            carrier_payment_notes : notes,
+            carrier_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
+         },{
            new: true, 
            runValidators: true,
          });
+         await CreatePaymentLog(req.user?._id, req.params.id, status, method, "carrier", req?.user?.is_admin == 1 ? 'admin' : null);
       }
       if(!order){ 
         res.send({
@@ -208,13 +221,14 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
           message: "failed to update order information.",
         });
       } 
+      console.log(order);
       res.send({
-        status: true,
-        error :order,
-        message: "Payment status has been updated.",
+         status: true,
+         error : order,
+         message: "Payment status has been updated.",
       });
-  
-    } catch (error) {
+   } catch (error) {
+      console.log(error);
       res.send({
         status: false,
         error :error,
@@ -313,7 +327,7 @@ exports.overview = catchAsync(async (req, res) => {
          { title : 'Pending Payments', data: pendingPayments, link:"none" },
       ] 
    });
- });
+});
 
 exports.order_detail = catchAsync(async (req, res) => {
    const id = req.params.id;
@@ -321,17 +335,17 @@ exports.order_detail = catchAsync(async (req, res) => {
       _id : id,
       deletedAt : null || ''
     }).populate(['created_by', 'customer', 'carrier']);
-
+   
     if(!order){ 
       res.json({
          status: false,
-         orders: null,
+         orders: null, 
          message: "Order not found."
        });
     }
    res.json({
       status: true,
-      order: order,
+      order: order
    });
 });
 
@@ -341,15 +355,19 @@ exports.order_docs = catchAsync(async (req, res) => {
       order : id,
       deletedAt : null || ''
     });
+    let paymentLogs = await PaymentLogs.find({order: id}).populate('updated_by');
+    paymentLogs = paymentLogs ? paymentLogs.reverse() : [];
     if(!files){ 
       res.json({
          status: false,
          files: null,
+         paymentLogs: paymentLogs ?? [],
          message: "files not found."
        });
     }
    res.json({
       status: true,
+      paymentLogs: paymentLogs ?? [],
       files: files,
    });
 });
@@ -374,8 +392,6 @@ exports.lockOrder = catchAsync(async (req, res) => {
       'Message': "Order locked status updated.",
    });
 });
-
-
 
 exports.addCummodity = catchAsync(async (req, res, next) => {
    const { value } = req.body;
@@ -437,6 +453,7 @@ exports.addEquipment = catchAsync(async (req, res, next) => {
       logger(err);
    });
 });
+
 exports.removeEquipment = catchAsync(async (req, res, next) => {
    const { id } = req.body;
    console.log("id",id)
@@ -452,6 +469,7 @@ exports.removeEquipment = catchAsync(async (req, res, next) => {
        logger(err);
      });
 });
+
 exports.equipmentLists = catchAsync(async (req, res, next) => {
    const list = await Equipment.find({});
    const arr = [];
@@ -482,6 +500,7 @@ exports.addCharges = catchAsync(async (req, res, next) => {
       logger(err);
    });
 });
+
 exports.removeCharge = catchAsync(async (req, res, next) => {
    const { id } = req.body;
    Charges.findByIdAndDelete(id)
@@ -513,21 +532,17 @@ exports.chargesLists = catchAsync(async (req, res, next) => {
    });
 });
 
-// Payments 
 exports.orderPayments = catchAsync(async (req, res, next) => {
    const { search, customer_id, carrier_id, sortby } = req.query;
    const queryObj = {
       $or: [{ deletedAt: null }]
    };
-
    if(customer_id){
       queryObj.customer = customer_id;
    }
-
    if(carrier_id){
       queryObj.carrier = carrier_id;
    }
-
 
    let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
@@ -543,14 +558,13 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
          return statusPriority[a.order_status] - statusPriority[b.order_status];
       });
    }
-
-  res.json({
-    status: true,
-    orders: data,
-    page : page,
-    totalPages : totalPages,
-    message: data.length ? undefined : "No files found"
-  });
+   res.json({
+      status: true,
+      orders: data,
+      page : page,
+      totalPages : totalPages,
+      message: data.length ? undefined : "No files found"
+   });
 });
 
 

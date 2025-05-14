@@ -71,8 +71,7 @@ const editUser = catchAsync(async (req, res, next) => {
       status : false,
       message : "Your given email address is already used."
     });
-  }
-  console.log("req.body.role",req.body);
+  } 
   User.findByIdAndUpdate(req.params.id, {
     name: req.body.name,
     email: req.body.email, 

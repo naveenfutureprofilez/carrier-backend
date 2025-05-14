@@ -24,16 +24,7 @@ const schema = new mongo.Schema({
         type: mongoose.Schema.Types.ObjectId, ref: 'customers',
         required:[true, 'Please enter customer details.'],
     },
-    customer_payment_status :{
-        type:String,
-        default:"pending",
-    },
-    customer_payment_date :{
-        type: Date
-    },
-    customer_payment_method :{
-        type: String,
-    },
+   
     total_amount: {
         type:Number,
         required:[true, 'Please enter total amount of this order.'],
@@ -42,18 +33,28 @@ const schema = new mongo.Schema({
         type: Boolean,
         default: false
     },
-
-    customer_payment_approved : {
-        type: Number,
-        default: 0 // 0 not approved, 1 approved, 2 rejected
+    
+    // CUSTOMER PAYEMENTS
+    customer_payment_status : {
+        type: String,
+        default: 'pending'
     },
     customer_payment_approved_by_admin : {
         type: Number,
         default: 0 // 0 not approved, 1 approved, 2 rejected
     },
-    carrier_payment_approved : {
-        type: Number,
-        default: 0 // 0 not approved, 1 approved, 2 rejected
+    customer_payment_date :{
+        type: Date
+    },
+    customer_payment_method :{
+        type: String,
+    },
+
+
+    // CARRIER PAYMENTS
+    carrier_payment_status : {
+        type: String,
+        default: 'pending'
     },
     carrier_payment_approved_by_admin : {
         type: Number,
@@ -64,11 +65,7 @@ const schema = new mongo.Schema({
     carrier: { 
         type: mongoose.Schema.Types.ObjectId, ref: 'carriers',
         required:[true, 'Please enter carrier details.'],
-    },
-    carrier_payment_status :{
-        type:String,
-        default:"pending",
-    },
+    }, 
     carrier_payment_date :{
         type: Date
     },
@@ -133,10 +130,19 @@ const schema = new mongo.Schema({
 //     });
 //     return grossAmount;
 // });
+
 schema.virtual('commission').get(function () {
     const totalAmount = this.total_amount || 0;
     const staffCommissionRate = this.created_by?.staff_commision || 0;
     return totalAmount * (staffCommissionRate / 100);
+});
+
+schema.virtual('customer_final_payment_status').get(function () {
+    return this.customer_payment_status
+});
+
+schema.virtual('carrier_final_payment_status').get(function () {
+    return this.carrier_payment_status
 });
 
 schema.virtual('profit').get(function () {
