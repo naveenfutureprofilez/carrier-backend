@@ -82,6 +82,10 @@ const schema = new mongo.Schema({
         type: Number,
         // required:[true, 'Please enter total distance of this order.'],
     },
+    totalDistanceInKM : { 
+        type: Number,
+        // required:[true, 'Please enter total distance of this order.'],
+    },
 
     revenue_items: [],
     carrier_revenue_items: [],

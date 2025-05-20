@@ -31,5 +31,6 @@ router.route('/addCharge').post(validateToken, orderController.addCharges);
 
 // Payments
 router.route('/payments/listings').get(validateToken, orderController.orderPayments);
+router.route('/all_payments_status').get(validateToken, orderController.all_payments_status);
 
 module.exports = router;

@@ -167,29 +167,55 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
 });
 
 exports.getDistance = async (req, res) => {
-  const { start, end } = req.body;
+    
+  const apiKey = process.env.GOOGLE_API_KEY;
+  const locations = req.body.locations
+
+  if (!locations || locations.length <= 1) {
+    return res.status(200).json({ 
+      status: false,
+      msg: "At least 2 locations are required."
+     });
+  }
+  const origin = locations[0];
+  const destination = locations[locations?.length - 1];
+  const waypoints = locations.slice(1, -1); 
+  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
+    origin
+  )}&destination=${encodeURIComponent(destination)}${
+    waypoints.length ? `&waypoints=${waypoints.map(encodeURIComponent).join("|")}` : "" }&key=${apiKey}`;
+
   try {
-    const url = `https://api.distancematrix.ai/maps/api/distancematrix/json?origins=${start}&destinations=${end}&key=${process.env.DIMETRIX_KEY}`;
     const response = await axios.get(url);
-    if(response?.data?.rows[0]?.elements[0]?.distance?.value){
-      res.json({
-        success: true,
-        message: "Success",
-        data: (response?.data?.rows[0].elements[0].distance.value)/1000 || 0
-      });
-    } else { 
-      res.json({
-        success: false,
-        message: "Unable to calculate distance between all shipping locations. Please check all the locations correctly.",
-        data: response?.data?.rows[0].elements[0].distance.value || 0
+    const legs = response?.data?.routes[0]?.legs;
+
+    let totalDistance = 0;
+    let totalDuration = 0;
+
+    console.log("legs",response?.data);
+    if(legs){
+      legs.forEach((leg) => {
+        totalDistance += leg?.distance?.value; 
+        totalDuration += leg?.duration?.value;
       });
     }
-  } catch (error) {
-    console.error("Error fetching directions:", error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to calculate distance. Please check all the locations correctly.',
-      error: error.message
+
+    const totalKM = (totalDistance / 1000).toFixed(2);
+    const totalDistanceMiles = (totalKM / 1609.34).toFixed(2);
+
+    res.json({
+      status:false,
+      msg:"Distance calculated successfully",
+      origin,
+      destination,
+      waypoints,
+      locations,
+      totalKm: totalKM,
+      totalMiles: totalDistanceMiles,
+      totalDurationMin: Math.round(totalDuration / 60),
     });
+  } catch (error) {
+    console.error("Directions API Error:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to fetch route info" });
   }
 };
