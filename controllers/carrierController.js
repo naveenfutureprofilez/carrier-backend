@@ -166,6 +166,22 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
   }
 });
 
+exports.carrierDetail = catchAsync(async (req, res, next) => {
+  const c = await Carrier.findById(req.params.id);
+  if(!c){ 
+    res.send({
+      status: false,
+      result : null,
+      message: "Carrier not found",
+    });
+  } 
+  res.send({
+    status: true,
+    result : c,
+    message: "Carrier has been updated.",
+  });
+});
+
 exports.getDistance = async (req, res) => {
     
   const apiKey = process.env.GOOGLE_API_KEY;
@@ -189,10 +205,17 @@ exports.getDistance = async (req, res) => {
     const response = await axios.get(url);
     const legs = response?.data?.routes[0]?.legs;
 
+    
     let totalDistance = 0;
     let totalDuration = 0;
 
-    console.log("legs",response?.data);
+    console.log("response?.data?",response?.data);
+    if(response?.data?.error_message){
+      res.json({
+        status:false,
+        msg:response?.data?.error_message,
+      })
+    }
     if(legs){
       legs.forEach((leg) => {
         totalDistance += leg?.distance?.value; 
@@ -204,7 +227,7 @@ exports.getDistance = async (req, res) => {
     const totalDistanceMiles = (totalKM / 1609.34).toFixed(2);
 
     res.json({
-      status:false,
+      status:true,
       msg:"Distance calculated successfully",
       origin,
       destination,
@@ -215,7 +238,7 @@ exports.getDistance = async (req, res) => {
       totalDurationMin: Math.round(totalDuration / 60),
     });
   } catch (error) {
-    console.error("Directions API Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to fetch route info" });
+    console.log("Directions API Error:", error.response?.data || error.message);
+    // res.status(200).json({ error: "Failed to fetch route info" });
   }
 };

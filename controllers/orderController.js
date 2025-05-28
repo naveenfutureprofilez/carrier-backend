@@ -94,11 +94,18 @@ exports.create_order = catchAsync(async (req, res, next) => {
 });
 
 exports.order_listing = catchAsync(async (req, res, next) => {
-   const { search, customer_id, carrier_id, sortby, status } = req.query;
+   const { search, customer_id, carrier_id, sortby, status, paymentStatus } = req.query;
+   
+   console.log(req.query)
    const queryObj = {
       $or: [{ deletedAt: null }]
    };
 
+   if(paymentStatus){
+      queryObj.carrier_payment_status = paymentStatus;
+      queryObj.customer_payment_status = paymentStatus;
+   }
+   
    if(customer_id){
       queryObj.customer = customer_id;
    }
@@ -107,7 +114,6 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       queryObj.carrier = carrier_id;
    }
    if(status == 'added' || status == 'intransit' || status == 'completed'){
-      console.log(status);
       queryObj.order_status = status;
    }
 

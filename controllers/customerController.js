@@ -104,7 +104,7 @@ exports.customers_listing = catchAsync(async (req, res) => {
   });
 });
 
-exports.updateDetails = catchAsync(async (req, res, next) => {
+exports.customerDetails = catchAsync(async (req, res, next) => {
   const customer = await Customer.findById(req.params.id).populate('assigned_to');
   if(!customer){ 
     res.send({
