@@ -24,15 +24,18 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
     });
   }
 
-  let customerCode;
-  let isUnique = false;
-  while (!isUnique) {
-    customerCode = `${Math.floor(10000 + Math.random() * 90000)}`;
-    const existingUser = await Customer.findOne({ customerCode });
-    if (!existingUser) {
-      isUnique = true;
-    }
-  }
+  // let customerCode;
+  // let isUnique = false;
+  // while (!isUnique) {
+  //   customerCode = `${Math.floor(10000 + Math.random() * 90000)}`;
+  //   const existingUser = await Customer.findOne({ customerCode });
+  //   if (!existingUser) {
+  //     isUnique = true;
+  //   }
+  // }
+
+  const lastCustomer = await Customer.findOne().sort({ customerCode: -1 });
+  const newCustomerNo = lastCustomer ? parseInt(lastCustomer.customerCode) + 1 : 1000;
 
  await Customer.syncIndexes();
  Customer.create({
@@ -40,7 +43,7 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
    email: email,
    secondary_email: secondary_email,
    secondary_phone: secondary_phone,
-   customerCode: customerCode,
+   customerCode: newCustomerNo,
    phone: phone,
    address: address,
    country: country,
@@ -98,6 +101,22 @@ exports.customers_listing = catchAsync(async (req, res) => {
     per_page : limit,
     totalPages : totalPages,
     message: data.length ? undefined : "No customers found"
+  });
+});
+
+exports.customerDetails = catchAsync(async (req, res, next) => {
+  const customer = await Customer.findById(req.params.id).populate('assigned_to');
+  if(!customer){ 
+    res.send({
+      status: false,
+      result : null,
+      message: "Customer not found",
+    });
+  } 
+  res.send({
+    status: true,
+    result : customer,
+    message: "Customer has been updated.",
   });
 });
 

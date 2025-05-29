@@ -37,8 +37,6 @@ const multerParse = multer({
   dest: uploadDir,
 });
 
-
-
 app.post("/cloud/upload/:id", validateToken, multerParse.fields([{name: "attachment",},]),
   async (req, res) => {
     const orderid = req.params.id; 
@@ -48,7 +46,7 @@ app.post("/cloud/upload/:id", validateToken, multerParse.fields([{name: "attachm
     }
     try {
       const uploadResponse = await fileupload(attachment);
-      console.log("uploadResponse",uploadResponse)
+      console.log("req.user._id",req.user._id)
       if (uploadResponse) {
         const file = new Files({
           name: uploadResponse.file.originalname,
@@ -57,8 +55,10 @@ app.post("/cloud/upload/:id", validateToken, multerParse.fields([{name: "attachm
           url: uploadResponse.url,
           order: orderid,
           size : uploadResponse.size,
+          added_by: req.user._id
         });
         const fileupoaded = await file.save();
+        console.log("fileupoaded",fileupoaded)
         if (!fileupoaded) {
           return res.status(500).json({
             message: "File upload failed",

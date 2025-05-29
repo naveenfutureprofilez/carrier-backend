@@ -14,6 +14,7 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
       message:"MC code already exists. Please use a different MC code." 
     });
   }
+
   let carrierID;
   let isUnique = false;
   while (!isUnique) {
@@ -23,6 +24,7 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
       isUnique = true;
     }
   }
+
   await Carrier.syncIndexes();
   Carrier.create({
     name: name,
@@ -164,30 +166,87 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
   }
 });
 
+exports.carrierDetail = catchAsync(async (req, res, next) => {
+  const c = await Carrier.findById(req.params.id);
+  if(!c){ 
+    res.send({
+      status: false,
+      result : null,
+      message: "Carrier not found",
+    });
+  } 
+  res.send({
+    status: true,
+    result : c,
+    message: "Carrier has been updated.",
+  });
+});
+
 exports.getDistance = async (req, res) => {
-  const { start, end } = req.body;
+    
+  const apiKey = process.env.GOOGLE_API_KEY;
+  const locations = req.body.locations
+
+  if (!locations || locations.length <= 1) {
+    return res.status(200).json({ 
+      status: false,
+      msg: "At least 2 locations are required."
+     });
+  }
+  const origin = locations[0];
+  const destination = locations[locations?.length - 1];
+  const waypoints = locations.slice(1, -1); 
+  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
+    origin
+  )}&destination=${encodeURIComponent(destination)}${
+    waypoints.length ? `&waypoints=optimize:true|${waypoints.map(encodeURIComponent).join("|")}` : "" }&key=${apiKey}`;
+
+    console.log("url",url)
   try {
-    const url = `https://api.distancematrix.ai/maps/api/distancematrix/json?origins=${start}&destinations=${end}&key=${process.env.DIMETRIX_KEY}`;
     const response = await axios.get(url);
-    if(response?.data?.rows[0]?.elements[0]?.distance?.value){
-      res.json({
-        success: true,
-        message: "Success",
-        data: (response?.data?.rows[0].elements[0].distance.value)/1000 || 0
-      });
-    } else { 
-      res.json({
-        success: false,
-        message: "Unable to calculate distance between all shipping locations. Please check all the locations correctly.",
-        data: response?.data?.rows[0].elements[0].distance.value || 0
+    console.log("response?.data", response);
+    if (response?.data?.routes.length === 0 || response?.data?.status !== "OK") {
+      return res.status(200).json({
+        status: false,
+        msg: response?.data?.error_message || "No route found between given locations.",
       });
     }
-  } catch (error) {
-    console.error("Error fetching directions:", error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to calculate distance. Please check all the locations correctly.',
-      error: error.message
+    const legs = response?.data?.routes[0]?.legs;
+    
+    let totalDistance = 0;
+    let totalDuration = 0;
+
+    if(response?.data?.error_message){
+      res.json({
+        status:false,
+        msg:response?.data?.error_message,
+      })
+    }
+    console.log("legs",legs)
+    if(legs){
+      legs.forEach((leg) => {
+        totalDistance += leg?.distance?.value; 
+        totalDuration += leg?.duration?.value;
+      });
+    }
+    
+
+    const totalKM = (totalDistance / 1000).toFixed(2);
+    const totalDistanceMiles = (totalKM / 1609.34).toFixed(2);
+
+    res.json({
+      status:true,
+      msg:"Distance calculated successfully",
+      origin,
+      destination,
+      waypoints,
+      locations,
+      totalKm: totalKM,
+      totalMiles: totalDistanceMiles,
+      totalDurationMin: Math.round(totalDuration / 60),
     });
+  } catch (error) {
+    console.log("Directions API Error:", error.response?.data || error.message);
+    // res.status(200).json({ error: "Failed to fetch route info" });
   }
 };

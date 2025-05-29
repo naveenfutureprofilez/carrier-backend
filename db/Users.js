@@ -14,7 +14,7 @@ const schema = new mongoose.Schema({
         lowercase: true,
         validate: [validator.isEmail, 'Please provide a valid email address.'],
         unique: true,
-        index: true // ✅ Index for efficient searching
+        index: true 
     },
     avatar: {type: String},
     status: {
@@ -29,11 +29,14 @@ const schema = new mongoose.Schema({
         type: String,
         required: [true, 'Corporate ID can not be empty.'],
         unique: true,
-        index: true // ✅ Index for efficient searching
+        index: true 
     },
     role: {
         type: Number,
         default:1,
+    },
+    position : { 
+        type: String,
     },
     is_admin: {
         type: Number,

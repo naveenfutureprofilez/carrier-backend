@@ -3,54 +3,78 @@ const APIFeatures  = require("../utils/APIFeatures");
 const Order = require("../db/Order");
 const Files = require("../db/Files");
 const JSONerror = require("../utils/jsonErrorHandler");
+const Commudity = require("../db/Commudity");
+const Equipment = require("../db/Equipment");
+const Charges = require("../db/Charges");
+const PaymentLogs = require("../db/PaymentLogs");
+
+async function CreatePaymentLog(user, order, status, method, type, approval) {
+   const payment = PaymentLogs.create({
+      order: order,
+      method: method,
+      status: status,
+      type: type,
+      approval: "approved",
+      updated_by: user,
+   });
+   console.log(payment);
+   return payment;
+}
 
 exports.create_order = catchAsync(async (req, res, next) => {
    try {
 
       const { company_name,
          customer_order_no,
-         customer,
          shipping_details,
+
+         // Customer
+         customer,
+         customer_payment_date,
+         customer_payment_method,
+         total_amount,
+
+         // Carrier
          carrier,
          carrier_amount,
-         carrier_amount_currency,
-         payment_status,
-         payment_status_date,
-         payment_method,
-         carrier_payment_status,
          carrier_payment_date,
          carrier_payment_method,
+
+         
+         // Revennue
          revenue_items,
+         carrier_revenue_items,
          revenue_currency,
+
          totalDistance,
-         total_amount,
+
          order_status,
        } = req.body;
 
-       console.log("req.body", req.body);
-   
       const lastOrder = await Order.findOne().sort({ serial_no: -1 });
-      const newOrderId = lastOrder ? lastOrder.serial_no + 1 : 1;
+      const newOrderId = lastOrder ? parseInt(lastOrder.serial_no) + 1 : 1000;
       const order = await Order.create({
          company_name,
-         customer : customer,
-         created_by : req.user._id,
          serial_no : parseInt(newOrderId),
-         customer_order_no : parseInt(customer_order_no),
          shipping_details,
-         carrier,
+
+         customer : customer,
+         customer_payment_date,
+         customer_payment_method,
          total_amount,
-         carrier_amount, totalDistance,
-         carrier_amount_currency,
-         payment_status,
-         payment_status_date,
-         payment_method,
-         carrier_payment_status,
+
+         carrier,
+         carrier_amount, 
          carrier_payment_date,
          carrier_payment_method,
+
          revenue_items,
+         carrier_revenue_items,
          revenue_currency,
-         order_status
+         totalDistance,
+         order_status,
+
+         created_by : req.user._id,
       });
    
       if(!order){
@@ -69,24 +93,41 @@ exports.create_order = catchAsync(async (req, res, next) => {
    }
 });
 
-
-exports.order_listing = catchAsync(async (req, res) => {
-
-   const { search } = req.query;
+exports.order_listing = catchAsync(async (req, res, next) => {
+   const { search, customer_id, carrier_id, sortby, status, paymentStatus } = req.query;
+   
+   console.log(req.query)
    const queryObj = {
       $or: [{ deletedAt: null }]
    };
+
+   if(paymentStatus){
+      queryObj.carrier_payment_status = paymentStatus;
+      queryObj.customer_payment_status = paymentStatus;
+   }
+   
+   if(customer_id){
+      queryObj.customer = customer_id;
+   }
+
+   if(carrier_id){
+      queryObj.carrier = carrier_id;
+   }
+   if(status == 'added' || status == 'intransit' || status == 'completed'){
+      queryObj.order_status = status;
+   }
+
    if (req.user && req.user.role !== 1) {
    }  else {
       queryObj.created_by = req.user._id;
    }
 
    if (search && search.length >1) {
-      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
-      queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      queryObj.serial_no = { $regex: new RegExp(safeSearch, 'i') };
    }
-   
-    // Initial query with population
+
+   console.log("queryObj",queryObj)
     let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
       req.query
@@ -95,10 +136,12 @@ exports.order_listing = catchAsync(async (req, res) => {
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   const statusPriority = { added: 0, intransit: 1, completed: 2 };
-   data.sort((a, b) => {
-      return statusPriority[a.order_status] - statusPriority[b.order_status];
-   });
+   if(sortby !== 'date'){
+      const statusPriority = { added: 0, intransit: 1, completed: 2 };
+      data.sort((a, b) => {
+         return statusPriority[a.order_status] - statusPriority[b.order_status];
+      });
+   }
 
   res.json({
     status: true,
@@ -122,8 +165,6 @@ exports.order_listing_account = catchAsync(async (req, res) => {
          queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
       }
       
-
-      // Initial query with population
       let Query = new APIFeatures(
          Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
          req.query
@@ -136,14 +177,6 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       data.sort((a, b) => {
          return statusPriority[a.order_status] - statusPriority[b.order_status];
       });
-      
-      // const Query = new APIFeatures(
-      //    Order.find(queryObj).populate(["created_by", "customer", "carrier"]),
-      //    req.query
-      // ).sort();
-
-      // const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
-      // const data = await query;
 
       res.json({
          status: true,
@@ -167,26 +200,30 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
    try { 
       const { status, method, notes } = req.body;
       let order;
-      if(req.params.type === 'customer'){
-         order = await Order.findByIdAndUpdate(req.params.id, {
-            payment_status : status,
-            payment_status_date  : Date.now(),
-            payment_method : method,
-            customer_payment_notes : notes
-         }, {
-           new: true, 
-           runValidators: true,
-         });
+      if(req.params.type === 'customer'){ 
+            order = await Order.findByIdAndUpdate(req.params.id, {
+               customer_payment_status : status,
+               customer_payment_date  : Date.now(),
+               customer_payment_method : method,
+               customer_payment_notes : notes,
+               customer_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
+            }, {
+              new: true, 
+              runValidators: true,
+            });
+         await CreatePaymentLog(req.user?._id, req.params.id, status, method, 'customer', req?.user?.is_admin == 1 ? 'admin' : null);
       } else { 
          order = await Order.findByIdAndUpdate(req.params.id, {
             carrier_payment_status :status,
             carrier_payment_date : Date.now(),
             carrier_payment_method : method,
-            carrier_payment_notes : notes
-         }, {
+            carrier_payment_notes : notes,
+            carrier_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
+         },{
            new: true, 
            runValidators: true,
          });
+         await CreatePaymentLog(req.user?._id, req.params.id, status, method, "carrier", req?.user?.is_admin == 1 ? 'admin' : null);
       }
       if(!order){ 
         res.send({
@@ -195,13 +232,14 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
           message: "failed to update order information.",
         });
       } 
+      console.log(order);
       res.send({
-        status: true,
-        error :order,
-        message: "Payment status has been updated.",
+         status: true,
+         error : order,
+         message: "Payment status has been updated.",
       });
-  
-    } catch (error) {
+   } catch (error) {
+      console.log(error);
       res.send({
         status: false,
         error :error,
@@ -275,32 +313,49 @@ exports.addnote = catchAsync(async (req, res) => {
 });
 
 exports.overview = catchAsync(async (req, res) => {
-   let totalLoads, intransitLoads, completedLoads, pendingLoads, pendingPayments;
+   let customercompletedPayments, customerpendingPayments, totalLoads, intransitLoads, completedLoads, pendingLoads, carriercompletedPayments, carrierpendingPayments;
    if(req.user.role === 1){
       totalLoads = await Order.countDocuments({created_by: req.user._id});
       intransitLoads = await Order.countDocuments({ order_status: 'intransit', created_by: req.user._id});
       completedLoads = await Order.countDocuments({ order_status: 'completed', created_by: req.user._id});
       pendingLoads = await Order.countDocuments({ order_status: 'added', created_by: req.user._id});
-      pendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, created_by: req.user._id });
+      
+      // carrier
+      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, created_by: req.user._id });
+      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid', created_by: req.user._id });
+      // customer
+      customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', created_by: req.user._id });
+      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, created_by: req.user._id });
    } else {
       totalLoads = await Order.countDocuments();
       intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
       completedLoads = await Order.countDocuments({ order_status: 'completed'});
       pendingLoads = await Order.countDocuments({ order_status: 'added'});
-      pendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
+
+      // carrier
+      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
+      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid'  });
+      // customer
+      customercompletedPayments = await Order.countDocuments({ customer_payment_status:  'paid'  });
+      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' } });
    }
    res.json({
       status: true,
       message: 'Dashboard data retrieved successfully.',
       lists: [
-         { title : 'Total Loads', data: totalLoads, link:"none" },
-         { title : 'Intransit Loads', data: intransitLoads, link:"none" },
-         { title : 'Completed Loads', data: completedLoads, link:"none" },
-         { title : 'Pending Loads', data: pendingLoads, link:"none" },
-         { title : 'Pending Payments', data: pendingPayments, link:"none" },
+         { bg:'bg-green-700', title : 'Total Loads', data: totalLoads, link: '/orders' },
+         { bg:'bg-green-700', title : 'Intransit Loads', data: intransitLoads, link:"/orders?status=intransit" },
+         { bg:'bg-green-700', title : 'Completed Loads', data: completedLoads, link:"/orders?status=completed" },
+         { bg:'bg-green-700', title : 'Pending Loads', data: pendingLoads, link:"/orders?status=added" },
+
+         { bg:'bg-green-700', title : 'Carrier Pending Payments', data: carrierpendingPayments, link:"/payments?title=Carrier Pending Payments&type=carrier&status=pending" },
+         { bg:'bg-green-700', title : 'Carrier Done Payments', data: carriercompletedPayments, link:"/payments?title=Carrier Completed Payments&type=carrier&status=paid" },
+
+         { bg:'bg-green-700', title : 'Customer Pending Payments', data: customerpendingPayments, link:"/payments?title=Customer Pending Payments&type=customer&status=pending" },
+         { bg:'bg-green-700', title : 'Customer Done Payments', data: customercompletedPayments, link:"/payments?title=Customer Completed Payments&type=customer&status=paid" },
       ] 
    });
- });
+});
 
 exports.order_detail = catchAsync(async (req, res) => {
    const id = req.params.id;
@@ -308,17 +363,17 @@ exports.order_detail = catchAsync(async (req, res) => {
       _id : id,
       deletedAt : null || ''
     }).populate(['created_by', 'customer', 'carrier']);
-
+   
     if(!order){ 
       res.json({
          status: false,
-         orders: null,
+         orders: null, 
          message: "Order not found."
        });
     }
    res.json({
       status: true,
-      order: order,
+      order: order
    });
 });
 
@@ -327,19 +382,264 @@ exports.order_docs = catchAsync(async (req, res) => {
    const files = await Files.find({
       order : id,
       deletedAt : null || ''
-    });
+    }).populate('added_by');
+    let paymentLogs = await PaymentLogs.find({order: id}).populate('updated_by');
+    paymentLogs = paymentLogs ? paymentLogs.reverse() : [];
     if(!files){ 
       res.json({
          status: false,
          files: null,
+         paymentLogs: paymentLogs ?? [],
          message: "files not found."
        });
     }
+    console.log("files",files)
    res.json({
       status: true,
+      paymentLogs: paymentLogs ?? [],
       files: files,
    });
 });
+
+exports.lockOrder = catchAsync(async (req, res) => {
+   const id = req.params.id;
+   const order = await Order.findById(id);
+   if(!order){ 
+      res.json({
+         status: false,
+         message: "Order not found."
+       });
+   }
+   if(order.lock){
+      order.lock = null;
+   } else {
+      order.lock = true
+   }
+   await order.save();
+   res.json({
+      status: true,
+      'Message': "Order locked status updated.",
+   });
+});
+
+exports.addCummodity = catchAsync(async (req, res, next) => {
+   const { value } = req.body;
+   Commudity.create({
+      name: value,
+   }).then(result => {
+      res.send({
+      status: true,
+      message: "Commudity has been added.",
+   });
+   }).catch(err => {
+      JSONerror(res, err, next);
+      logger(err);
+   });
+});
+
+exports.removeCummodity = catchAsync(async (req, res, next) => {
+   const { id } = req.body;
+   Commudity.findByIdAndDelete(id)
+     .then(() => {
+       res.send({
+         status: true,
+         message: "Commudity has been permanently removed.",
+       });
+     })
+     .catch(err => {
+       JSONerror(res, err, next);
+       logger(err);
+     });
+});
+
+exports.cummodityLists = catchAsync(async (req, res, next) => {
+   const list = await Commudity.find({});
+   const arr = [];
+   list.map((item) => {
+      arr.push({
+         value: item.name,
+         label: item.name,
+         _id: item._id,
+      });
+   })
+   res.send({
+      status: true,
+      list: arr ,
+   });
+});
+
+exports.addEquipment = catchAsync(async (req, res, next) => {
+   const { value } = req.body;
+   Equipment.create({
+      name: value,
+   }).then(result => {
+      res.send({
+      status: true,
+      message: "Equipment has been added.",
+   });
+   }).catch(err => {
+      JSONerror(res, err, next);
+      logger(err);
+   });
+});
+
+exports.removeEquipment = catchAsync(async (req, res, next) => {
+   const { id } = req.body;
+   console.log("id",id)
+   Equipment.findByIdAndDelete(id)
+     .then(() => {
+       res.send({
+         status: true,
+         message: "Equipment has been permanently removed.",
+       });
+     })
+     .catch(err => {
+       JSONerror(res, err, next);
+       logger(err);
+     });
+});
+
+exports.equipmentLists = catchAsync(async (req, res, next) => {
+   const list = await Equipment.find({});
+   const arr = [];
+   list.map((item) => {
+      arr.push({
+         value: item.name,
+         label: item.name,
+         _id: item._id,
+      });
+   })
+   res.send({
+      status: true,
+      list: arr ,
+   });
+});
+
+exports.addCharges = catchAsync(async (req, res, next) => {
+   const { value } = req.body;
+   Charges.create({
+      name: value,
+   }).then(result => {
+      res.send({
+      status: true,
+      message: "Charge item has been added.",
+   });
+   }).catch(err => {
+      JSONerror(res, err, next);
+      logger(err);
+   });
+});
+
+exports.removeCharge = catchAsync(async (req, res, next) => {
+   const { id } = req.body;
+   Charges.findByIdAndDelete(id)
+     .then(() => {
+       res.send({
+         status: true,
+         message: "Charge has been permanently removed.",
+       });
+     })
+     .catch(err => {
+       JSONerror(res, err, next);
+       logger(err);
+     });
+});
+
+exports.chargesLists = catchAsync(async (req, res, next) => {
+   const list = await Charges.find({});
+   const arr = [];
+   list.map((item) => {
+      arr.push({
+         value: item.name,
+         label: item.name,
+         _id: item._id,
+      });
+   })
+   res.send({
+      status: true,
+      list: arr ,
+   });
+});
+
+exports.orderPayments = catchAsync(async (req, res, next) => {
+   const { search, customer_id, carrier_id, sortby } = req.query;
+   const queryObj = {
+      $or: [{ deletedAt: null }]
+   };
+
+   if(customer_id){
+      queryObj.customer = customer_id;
+   }
+   if(carrier_id){
+      queryObj.carrier = carrier_id;
+   }
+
+   let Query = new APIFeatures(
+      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      req.query
+   ).sort({ createdAt: 1 });
+
+   const { query, page, limit, totalPages } = await Query.paginate();
+   let data = await query;
+
+   if(sortby !== 'date'){
+      const statusPriority = { added: 0, intransit: 1, completed: 2 };
+      data.sort((a, b) => {
+         return statusPriority[a.order_status] - statusPriority[b.order_status];
+      });
+   }
+   res.json({
+      status: true,
+      orders: data,
+      page : page,
+      totalPages : totalPages,
+      message: data.length ? undefined : "No files found"
+   });
+});
+
+exports.all_payments_status = catchAsync(async (req, res, next) => {
+   const { search, type, status } = req.query;
+   const queryObj = {
+      $or: [{ deletedAt: null }]
+   };
+   if(type == 'carrier'){
+      if(status == 'pending'){
+         queryObj.carrier_payment_status = { $ne: 'paid' };
+      } else{
+         queryObj.carrier_payment_status = status;
+      }
+   }
+   if(type == 'customer'){
+      if(status == 'pending'){
+         queryObj.customer_payment_status = { $ne: 'paid' };
+      } else{
+         queryObj.customer_payment_status = status;
+      }
+   }
+    
+   let Query = new APIFeatures(
+      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      req.query
+   ).sort({ createdAt: 1 });
+
+   const { query, page, limit, totalPages } = await Query.paginate();
+   let data = await query;
+
+   // if(sortby !== 'date'){
+   //    const statusPriority = { added: 0, intransit: 1, completed: 2 };
+   //    data.sort((a, b) => {
+   //       return statusPriority[a.order_status] - statusPriority[b.order_status];
+   //    });
+   // }
+   res.json({
+      status: true,
+      lists: data,
+      page : page,
+      totalPages : totalPages,
+      message: data.length ? undefined : "No files found"
+   });
+});
+
 
 
  

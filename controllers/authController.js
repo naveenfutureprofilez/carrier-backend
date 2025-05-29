@@ -71,14 +71,14 @@ const editUser = catchAsync(async (req, res, next) => {
       status : false,
       message : "Your given email address is already used."
     });
-  }
-  console.log("req.body.role",req.body);
+  } 
   User.findByIdAndUpdate(req.params.id, {
     name: req.body.name,
     email: req.body.email, 
     staff_commision : req.body.role === 1 ? req.body.staff_commision : null,
     country: req.body.country,
     phone: req.body.phone,
+    position: req.body.position,
     address: req.body.address,
     role: req.body.role,
   }).then(result => {
@@ -118,7 +118,7 @@ const suspandUser = catchAsync(async (req, res, next) => {
 });
 
 const signup = catchAsync(async (req, res, next) => {
-  const { role, name, email, avatar, password, generateAutoPassword, staff_commision } = req.body;
+  const { role, name, email, avatar, password, generateAutoPassword, staff_commision, position } = req.body;
   if(req.user && req.user.is_admin !== 1){
     return res.json({
       status : false,
@@ -162,6 +162,7 @@ const signup = catchAsync(async (req, res, next) => {
     phone: req.body.phone,
     address: req.body.address,
     role: role,
+    position:position,
     confirmPassword: generatedPassword,
   }).then(result => {
     result.password = undefined;

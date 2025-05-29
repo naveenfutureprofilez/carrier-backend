@@ -8,12 +8,11 @@ const schema = new mongoose.Schema({
    filename: { type:String },
    url: { type:String },
    order: { type: mongoose.Schema.Types.ObjectId, ref: 'orders' },
-   added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
    createdAt: {
       type: Date,
       default: Date.now()     
    },
-   deletedAt: {
+   read_status: {
       type: Date,
       default: null   
    },
@@ -21,7 +20,7 @@ const schema = new mongoose.Schema({
 
 
 
-const Files = mongoose.model('files', schema);
-module.exports = Files;
+const Notification = mongoose.model('notifications', schema);
+module.exports = Notification;
 
  

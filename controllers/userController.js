@@ -3,7 +3,6 @@ const APIFeatures = require("../utils/APIFeatures");
 const AppError = require("../utils/AppError");
 const catchAsync = require("../utils/catchAsync");
 
-
 const filterObj = async (obj, ...allowed) => { 
    let newObj = {};
    Object.keys(obj).forEach(el=>{ 
