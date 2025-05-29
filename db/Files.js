@@ -8,6 +8,7 @@ const schema = new mongoose.Schema({
    filename: { type:String },
    url: { type:String },
    order: { type: mongoose.Schema.Types.ObjectId, ref: 'orders' },
+   added_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
    createdAt: {
       type: Date,
       default: Date.now()     

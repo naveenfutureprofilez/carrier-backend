@@ -319,23 +319,25 @@ exports.overview = catchAsync(async (req, res) => {
       intransitLoads = await Order.countDocuments({ order_status: 'intransit', created_by: req.user._id});
       completedLoads = await Order.countDocuments({ order_status: 'completed', created_by: req.user._id});
       pendingLoads = await Order.countDocuments({ order_status: 'added', created_by: req.user._id});
+      
       // carrier
-      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, created_by: req.user._id });
-      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'pending' }, created_by: req.user._id });
+      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, created_by: req.user._id });
+      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid', created_by: req.user._id });
       // customer
-      customercompletedPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, created_by: req.user._id });
-      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'pending' }, created_by: req.user._id });
+      customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', created_by: req.user._id });
+      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, created_by: req.user._id });
    } else {
       totalLoads = await Order.countDocuments();
       intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
       completedLoads = await Order.countDocuments({ order_status: 'completed'});
       pendingLoads = await Order.countDocuments({ order_status: 'added'});
+
       // carrier
-      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
-      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'pending' } });
+      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
+      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid'  });
       // customer
-      customercompletedPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' } });
-      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'pending' } });
+      customercompletedPayments = await Order.countDocuments({ customer_payment_status:  'paid'  });
+      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' } });
    }
    res.json({
       status: true,
@@ -380,7 +382,7 @@ exports.order_docs = catchAsync(async (req, res) => {
    const files = await Files.find({
       order : id,
       deletedAt : null || ''
-    });
+    }).populate('added_by');
     let paymentLogs = await PaymentLogs.find({order: id}).populate('updated_by');
     paymentLogs = paymentLogs ? paymentLogs.reverse() : [];
     if(!files){ 
@@ -391,6 +393,7 @@ exports.order_docs = catchAsync(async (req, res) => {
          message: "files not found."
        });
     }
+    console.log("files",files)
    res.json({
       status: true,
       paymentLogs: paymentLogs ?? [],
@@ -600,10 +603,18 @@ exports.all_payments_status = catchAsync(async (req, res, next) => {
       $or: [{ deletedAt: null }]
    };
    if(type == 'carrier'){
-      queryObj.carrier_payment_status = status;
+      if(status == 'pending'){
+         queryObj.carrier_payment_status = { $ne: 'paid' };
+      } else{
+         queryObj.carrier_payment_status = status;
+      }
    }
    if(type == 'customer'){
-      queryObj.customer_payment_status = status;
+      if(status == 'pending'){
+         queryObj.customer_payment_status = { $ne: 'paid' };
+      } else{
+         queryObj.customer_payment_status = status;
+      }
    }
     
    let Query = new APIFeatures(

@@ -199,29 +199,37 @@ exports.getDistance = async (req, res) => {
   const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
     origin
   )}&destination=${encodeURIComponent(destination)}${
-    waypoints.length ? `&waypoints=${waypoints.map(encodeURIComponent).join("|")}` : "" }&key=${apiKey}`;
+    waypoints.length ? `&waypoints=optimize:true|${waypoints.map(encodeURIComponent).join("|")}` : "" }&key=${apiKey}`;
 
+    console.log("url",url)
   try {
     const response = await axios.get(url);
+    console.log("response?.data", response);
+    if (response?.data?.routes.length === 0 || response?.data?.status !== "OK") {
+      return res.status(200).json({
+        status: false,
+        msg: response?.data?.error_message || "No route found between given locations.",
+      });
+    }
     const legs = response?.data?.routes[0]?.legs;
-
     
     let totalDistance = 0;
     let totalDuration = 0;
 
-    console.log("response?.data?",response?.data);
     if(response?.data?.error_message){
       res.json({
         status:false,
         msg:response?.data?.error_message,
       })
     }
+    console.log("legs",legs)
     if(legs){
       legs.forEach((leg) => {
         totalDistance += leg?.distance?.value; 
         totalDuration += leg?.duration?.value;
       });
     }
+    
 
     const totalKM = (totalDistance / 1000).toFixed(2);
     const totalDistanceMiles = (totalKM / 1609.34).toFixed(2);

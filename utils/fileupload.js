@@ -8,8 +8,7 @@ const fileupload = async (file) => {
     const originalFilename = file.originalname.replace(/\s/g, '');
     const uniqueFilename = `${Date.now()}-${file.filename}-${originalFilename}`;
     const yourStorageZone = process.env.BUNNY_STORAGE_ZONE;
-    // const apiKey = process.env.BUNNY_API_KEY;
-    const apiKey = 'c0f26274-363f-4dc6-b6622e0b1241-4324-49b8';
+    const apiKey = process.env.BUNNY_API_KEY;
     const url = `https://storage.bunnycdn.com/${yourStorageZone}/${uniqueFilename}`;
     const headers = {
       AccessKey: apiKey, 
