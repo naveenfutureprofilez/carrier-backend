@@ -129,7 +129,7 @@ exports.order_listing = catchAsync(async (req, res, next) => {
 
    console.log("queryObj",queryObj)
     let Query = new APIFeatures(
-      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
       req.query
    ).sort({ createdAt: 1 });
 
@@ -166,7 +166,7 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       }
       
       let Query = new APIFeatures(
-         Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+         Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
          req.query
       ).sort({ createdAt: 1 });
 
@@ -206,6 +206,7 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
                customer_payment_date  : Date.now(),
                customer_payment_method : method,
                customer_payment_notes : notes,
+               customer_payment_updated_by : req?.user?._id,
                customer_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
             }, {
               new: true, 
@@ -218,6 +219,7 @@ exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
             carrier_payment_date : Date.now(),
             carrier_payment_method : method,
             carrier_payment_notes : notes,
+            carrier_payment_updated_by : req?.user?._id,
             carrier_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
          },{
            new: true, 

@@ -10,7 +10,7 @@ router.route('/order/detail/:id').get(validateToken, orderController.order_detai
 router.route('/order_docs/:id').get(validateToken, orderController.order_docs);
 router.route('/lock-order/:id').get(validateToken, orderController.lockOrder);
 router.route('/account/order/listings').get(validateToken, orderController.order_listing_account);
-router.route('/account/order/update/:id/:type').post(validateToken, restrictOrderMiddleware, orderController.updateOrderPaymentStatus);
+router.route('/account/order/update/payment/:id/:type').post(validateToken, restrictOrderMiddleware, orderController.updateOrderPaymentStatus);
 
 router.route('/account/order-status/:id').post(validateToken, restrictOrderMiddleware, orderController.updateOrderStatus);
 router.route('/account/order/addnote/:id').post(validateToken, restrictOrderMiddleware, orderController.addnote);
