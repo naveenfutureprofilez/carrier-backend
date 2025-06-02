@@ -49,6 +49,9 @@ const schema = new mongo.Schema({
     customer_payment_method :{
         type: String,
     },
+    customer_payment_updated_by :{
+        type: mongoose.Schema.Types.ObjectId, ref: 'users',
+    },
 
 
     // CARRIER PAYMENTS
@@ -60,18 +63,21 @@ const schema = new mongo.Schema({
         type: Number,
         default: 0 // 0 not approved, 1 approved, 2 rejected
     },
-
-    // Carrier
-    carrier: { 
-        type: mongoose.Schema.Types.ObjectId, ref: 'carriers',
-        required:[true, 'Please enter carrier details.'],
-    }, 
     carrier_payment_date :{
         type: Date
     },
     carrier_payment_method :{
         type: String
     },
+    carrier_payment_updated_by :{
+        type: mongoose.Schema.Types.ObjectId, ref: 'users',
+    },
+
+    // Carrier
+    carrier: { 
+        type: mongoose.Schema.Types.ObjectId, ref: 'carriers',
+        required:[true, 'Please enter carrier details.'],
+    }, 
     carrier_amount:  {
         type:Number,
         required:[true, 'Please enter selling amount of this order.'],

@@ -6,7 +6,10 @@ const bodyParser = require('body-parser');
 require('dotenv').config()
 const globalErrorHandler = require("./middlewares/gobalErrorHandler");
 const errorHandler = require("./middlewares/errorHandler");
-require("./db/config"); 
+// require("./db/config"); 
+// Your Vercel function (e.g., api/users.js)
+const connectDB = require('./db/config'); // Adjust path as needed
+connectDB();
 const multer = require('multer');
 const Files = require('./db/Files');
 const os = require('os');
@@ -33,6 +36,7 @@ const path = require('path');
 const uploadDir = path.join(os.tmpdir(), 'uploads');
 const fileupload = require('./utils/fileupload');
 const { validateToken } = require('./controllers/authController');
+const User = require('./db/Users');
 const multerParse = multer({
   dest: uploadDir,
 });
