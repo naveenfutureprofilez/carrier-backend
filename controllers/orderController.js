@@ -73,6 +73,7 @@ exports.create_order = catchAsync(async (req, res, next) => {
          revenue_currency,
          totalDistance,
          order_status,
+         company:req.user && req.user.company ? req.user.company._id : null,
 
          created_by : req.user._id,
       });
@@ -428,6 +429,7 @@ exports.addCummodity = catchAsync(async (req, res, next) => {
    const { value } = req.body;
    Commudity.create({
       name: value,
+      company:req.user && req.user.company ? req.user.company._id : null,
    }).then(result => {
       res.send({
       status: true,
@@ -474,6 +476,7 @@ exports.addEquipment = catchAsync(async (req, res, next) => {
    const { value } = req.body;
    Equipment.create({
       name: value,
+      company:req.user && req.user.company ? req.user.company._id : null,
    }).then(result => {
       res.send({
       status: true,
@@ -521,6 +524,7 @@ exports.addCharges = catchAsync(async (req, res, next) => {
    const { value } = req.body;
    Charges.create({
       name: value,
+      company:req.user && req.user.company ? req.user.company._id : null,
    }).then(result => {
       res.send({
       status: true,

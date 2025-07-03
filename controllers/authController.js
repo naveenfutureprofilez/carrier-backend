@@ -163,6 +163,7 @@ const signup = catchAsync(async (req, res, next) => {
     phone: req.body.phone,
     address: req.body.address,
     role: role,
+    company:req.user && req.user.company ? req.user.company._id : null,
     position:position,
     confirmPassword: generatedPassword,
   }).then(result => {
