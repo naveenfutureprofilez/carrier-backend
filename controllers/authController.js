@@ -33,7 +33,8 @@ const validateToken = catchAsync ( async (req, res, next) => {
       try {
         const decode = await promisify(jwt.verify)(token, SECRET_ACCESS);
         if(decode){ 
-          let result = await User.findById(decode.id);
+          let result = await User.findById(decode.id).populate('company');
+          console.log("result",result)
           req.user = result;
           next();
         } else { 

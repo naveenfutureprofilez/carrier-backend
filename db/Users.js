@@ -2,8 +2,10 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const Company = require('./Company');
 
 const schema = new mongoose.Schema({
+    company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies' },
     name: {
         type: String,
         required: [true, 'Please enter your name.'],
@@ -62,6 +64,7 @@ const schema = new mongoose.Schema({
     //         message: "Passwords did't matched."
     //     }
     // },
+    
 
     // additonal fields
     phone: {
@@ -116,6 +119,12 @@ schema.methods.createPasswordResetToken = async function () {
     this.resetTokenExpire = Date.now() + 10 * 60 * 1000;
     return token;
 }
+
+// schema.virtual('company').get(async function () {
+//     const companydetails = await Company.findById(this.company_id);
+//     return companydetails;
+// });
+
 
 const User = mongoose.model('users', schema);
 module.exports = User;

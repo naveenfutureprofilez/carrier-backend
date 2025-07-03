@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
+    company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies' },
     name: {
         type: String,
         required: [true, 'Please enter Carrier Name.'],

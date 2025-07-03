@@ -143,13 +143,13 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       });
    }
 
-  res.json({
-    status: true,
-    orders: data,
-    page : page,
-    totalPages : totalPages,
-    message: data.length ? undefined : "No files found"
-  });
+   res.json({
+      status: true,
+      orders: data,
+      page : page,
+      totalPages : totalPages,
+      message: data.length ? undefined : "No files found"
+   });
 });
 
 exports.order_listing_account = catchAsync(async (req, res) => {

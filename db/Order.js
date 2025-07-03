@@ -6,6 +6,7 @@ const schema = new mongo.Schema({
     //     minlength: 1,
     //     required:[true, 'Please enter customer order number.'],
     // }, 
+    company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies' },
     company_name:{ 
         type:String,
         required:true,
