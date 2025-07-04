@@ -128,7 +128,7 @@ exports.order_listing = catchAsync(async (req, res, next) => {
    }
 
    console.log("queryObj",queryObj)
-    let Query = new APIFeatures(
+   let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
       req.query
    ).sort({ createdAt: 1 });
@@ -154,17 +154,14 @@ exports.order_listing = catchAsync(async (req, res, next) => {
 
 exports.order_listing_account = catchAsync(async (req, res) => {
    try {
-
       const { search } = req.query;
       const queryObj = {
          $or: [{ deletedAt: null }]
       };
-
       if (search && search.length >1) {
          const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
          queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
       }
-      
       let Query = new APIFeatures(
          Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
          req.query
