@@ -38,6 +38,7 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
     zipcode: zipcode,
     created_by:req.user._id,
     mc_code: mc_code,
+    company:req.user && req.user.company ? req.user.company._id : null,
     secondary_email: secondary_email,
     secondary_phone: secondary_phone
   }).then(result => {

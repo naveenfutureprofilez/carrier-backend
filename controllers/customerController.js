@@ -49,6 +49,7 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
    country: country,
    state: state,
    city: city,
+   company:req.user && req.user.company ? req.user.company._id : null,
    zipcode: zipcode,
    assigned_to:assigned_to,
    created_by:req.user._id,
