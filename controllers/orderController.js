@@ -343,16 +343,16 @@ exports.overview = catchAsync(async (req, res) => {
       status: true,
       message: 'Dashboard data retrieved successfully.',
       lists: [
-         { bg:'bg-green-700', title : 'Total Loads', data: totalLoads, link: '/orders' },
-         { bg:'bg-green-700', title : 'Intransit Loads', data: intransitLoads, link:"/orders?status=intransit" },
-         { bg:'bg-green-700', title : 'Completed Loads', data: completedLoads, link:"/orders?status=completed" },
-         { bg:'bg-green-700', title : 'Pending Loads', data: pendingLoads, link:"/orders?status=added" },
+         { icon:"van",bg:'bg-green-700', title : 'Total Loads', data: totalLoads, link: '/orders' },
+         { icon:"van",bg:'bg-green-700', title : 'Intransit Loads', data: intransitLoads, link:"/orders?status=intransit" },
+         { icon:"van",bg:'bg-green-700', title : 'Completed Loads', data: completedLoads, link:"/orders?status=completed" },
+         { icon:"van",bg:'bg-green-700', title : 'Pending Loads', data: pendingLoads, link:"/orders?status=added" },
 
-         { bg:'bg-green-700', title : 'Carrier Pending Payments', data: carrierpendingPayments, link:"/payments?title=Carrier Pending Payments&type=carrier&status=pending" },
-         { bg:'bg-green-700', title : 'Carrier Done Payments', data: carriercompletedPayments, link:"/payments?title=Carrier Completed Payments&type=carrier&status=paid" },
+         { icon:"card",bg:'bg-green-700', title : 'Carrier Pending Payments', data: carrierpendingPayments, link:"/payments?title=Carrier Pending Payments&type=carrier&status=pending" },
+         { icon:"card",bg:'bg-green-700', title : 'Carrier Done Payments', data: carriercompletedPayments, link:"/payments?title=Carrier Completed Payments&type=carrier&status=paid" },
 
-         { bg:'bg-green-700', title : 'Customer Pending Payments', data: customerpendingPayments, link:"/payments?title=Customer Pending Payments&type=customer&status=pending" },
-         { bg:'bg-green-700', title : 'Customer Done Payments', data: customercompletedPayments, link:"/payments?title=Customer Completed Payments&type=customer&status=paid" },
+         { icon:"card",bg:'bg-green-700', title : 'Customer Pending Payments', data: customerpendingPayments, link:"/payments?title=Customer Pending Payments&type=customer&status=pending" },
+         { icon:"card",bg:'bg-green-700', title : 'Customer Done Payments', data: customercompletedPayments, link:"/payments?title=Customer Completed Payments&type=customer&status=paid" },
       ] 
    });
 });
