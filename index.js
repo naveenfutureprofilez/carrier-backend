@@ -94,7 +94,7 @@ app.post("/cloud/upload/:id", validateToken, multerParse.fields([{name: "attachm
 
 app.get('/', (req, res) => {
   res.send({
-    message: "ACTIVE site",
+    message: "ACTIVE site active",
     status: 200
   });
 });
