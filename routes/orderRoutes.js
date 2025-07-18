@@ -9,6 +9,7 @@ router.route('/order/listings').get(validateToken, orderController.order_listing
 router.route('/order/detail/:id').get(validateToken, orderController.order_detail);
 router.route('/order_docs/:id').get(validateToken, orderController.order_docs);
 router.route('/lock-order/:id').get(validateToken, orderController.lockOrder);
+router.route('/delete-order/:id').get(validateToken, orderController.deleteOrder);
 router.route('/account/order/listings').get(validateToken, orderController.order_listing_account);
 router.route('/account/order/update/payment/:id/:type').post(validateToken, restrictOrderMiddleware, orderController.updateOrderPaymentStatus);
 
@@ -19,7 +20,6 @@ router.route('/overview').get(validateToken, orderController.overview);
 router.route('/cummodityLists').get(validateToken, orderController.cummodityLists);
 router.route('/removeCummodity').post(validateToken, orderController.removeCummodity);
 router.route('/addCummodity').post(validateToken, orderController.addCummodity);
-
 
 router.route('/equipmentLists').get(validateToken, orderController.equipmentLists);
 router.route('/removeEquipment').post(validateToken, orderController.removeEquipment);

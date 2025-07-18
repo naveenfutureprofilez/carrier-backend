@@ -121,7 +121,6 @@ const schema = new mongo.Schema({
         type: Date,
         default: Date.now()   
     },
-
     deletedAt: {
         type: Date,
     },
@@ -132,6 +131,16 @@ const schema = new mongo.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 }); 
+
+// schema.pre(/^find/, function (next) {
+//     this.find({ deletedAt: { $exists: false } });
+//     next();
+// });
+
+schema.query.notDeleted = function () {
+  return this.where({ deletedAt: { $exists: false } });
+};
+
 
 // schema.virtual('gross_amount').get(function () {
 //     const items = this.revenue_items || [];

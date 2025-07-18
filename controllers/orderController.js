@@ -50,7 +50,7 @@ exports.create_order = catchAsync(async (req, res, next) => {
 
          order_status,
        } = req.body;
-
+ 
       const lastOrder = await Order.findOne().sort({ serial_no: -1 });
       const newOrderId = lastOrder ? parseInt(lastOrder.serial_no) + 1 : 1000;
       const order = await Order.create({
@@ -402,6 +402,13 @@ exports.order_docs = catchAsync(async (req, res) => {
 });
 
 exports.lockOrder = catchAsync(async (req, res) => {
+
+   if(req.user && req.user.is_admin !== 1){
+      return res.json({
+         status : false,
+         message : "You are not authorized to lock order."
+      });
+   }
    const id = req.params.id;
    const order = await Order.findById(id);
    if(!order){ 
@@ -419,6 +426,31 @@ exports.lockOrder = catchAsync(async (req, res) => {
    res.json({
       status: true,
       'Message': "Order locked status updated.",
+   });
+});
+
+
+exports.deleteOrder = catchAsync(async (req, res) => {
+   if(req.user && req.user.is_admin !== 1){
+      return res.json({
+         status : false,
+         message : "You are not authorized to delete this order."
+      });
+   }
+
+   const id = req.params.id;
+   const order = await Order.findById(id);
+   if(!order){ 
+      res.json({
+         status: false,
+         message: "Order not found."
+       });
+   }
+   order.deletedAt = Date.now();
+   await order.save();
+   res.json({
+      status: true,
+      message: "Order deleted successfully."
    });
 });
 
