@@ -326,6 +326,7 @@ exports.overview = catchAsync(async (req, res) => {
       // customer
       customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', created_by: req.user._id });
       customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, created_by: req.user._id });
+
    } else {
       totalLoads = await Order.countDocuments();
       intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
