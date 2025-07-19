@@ -8,18 +8,29 @@ const globalErrorHandler = require("./middlewares/gobalErrorHandler");
 const errorHandler = require("./middlewares/errorHandler");
 // require("./db/config"); 
 // Your Vercel function (e.g., api/users.js)
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+
+
 const connectDB = require('./db/config'); // Adjust path as needed
 connectDB();
 const multer = require('multer');
 const Files = require('./db/Files');
 const os = require('os');
-const corsOptions = {
-  origin: '*',
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true,
-};
+// const corsOptions = {
+//   origin: '*',
+//   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+//   credentials: true,
+// };
+// app.use(cors(corsOptions));
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    return callback(null, true);
+  },
+  credentials: true
+}));
 
-app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(errorHandler);
 app.use(globalErrorHandler);
@@ -37,6 +48,7 @@ const uploadDir = path.join(os.tmpdir(), 'uploads');
 const fileupload = require('./utils/fileupload');
 const { validateToken } = require('./controllers/authController');
 const User = require('./db/Users');
+const EmployeeDoc = require('./db/EmployeeDoc');
 const multerParse = multer({
   dest: uploadDir,
 });
@@ -78,6 +90,56 @@ app.post("/cloud/upload/:id", validateToken, multerParse.fields([{name: "attachm
       } else {
         res.status(500).json({
           message: "File upload failed",
+          error :uploadResponse,
+          status:false
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: "An error occurred during file upload",
+        error: error
+      });
+    }
+  }
+);
+
+app.post("/upload/employee/doc/:id", validateToken, multerParse.fields([{name: "attachment",},]),
+  async (req, res) => {
+    const userid = req.params.id; 
+    const attachment = req.files?.attachment?.[0];
+    if (!attachment) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    try {
+      const uploadResponse = await fileupload(attachment);
+      if (uploadResponse) {
+        const file = new EmployeeDoc({
+          name: uploadResponse.file.originalname,
+          mime: uploadResponse.mime,
+          filename: uploadResponse.filename,
+          url: uploadResponse.url,
+          user: userid,
+          size : uploadResponse.size,
+          added_by: req.user._id
+        });
+        const fileupoaded = await file.save();
+        console.log("fileupoaded",fileupoaded)
+        if (!fileupoaded) {
+          return res.status(500).json({
+            message: "File upload failed",
+            error :{uploadResponse, fileupoaded},
+            status:true
+          });
+        }
+        return res.status(201).json({
+          message: "Document uploaded successfully.",
+          file_data: fileupoaded,
+          status:true
+        });
+      } else {
+        res.status(500).json({
+          message: "Document uploading failed.",
           error :uploadResponse,
           status:false
         });

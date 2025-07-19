@@ -10,6 +10,7 @@ const logger = require("../utils/logger");
 const SECRET_ACCESS = process.env && process.env.SECRET_ACCESS || "MYSECRET";
 const bcrypt = require('bcrypt');
 const Company = require("../db/Company");
+const EmployeeDoc = require("../db/EmployeeDoc");
 
 const signToken = async (id) => {
   const token = jwt.sign(
@@ -21,41 +22,49 @@ const signToken = async (id) => {
 }
 
 const validateToken = catchAsync ( async (req, res, next) => {
-  let authHeader = req.headers.Authorization || req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer")) {
-    let token = authHeader.split(" ")[1];
-    if (!token) {
-      res.status(400).json({
-        status : false,
-        message:"User is not authorized or Token is missing",
-      }); 
-    } else {
-      try {
-        const decode = await promisify(jwt.verify)(token, SECRET_ACCESS);
-        if(decode){ 
-          let result = await User.findById(decode.id).populate('company');
-          console.log("result",result)
-          req.user = result;
-          next();
-        } else { 
-          res.status(401).json({
-            status : false,
-            message:'Uauthorized',
-          })
-        }
-      } catch (err) {
-        res.status(401).json({
-          status : false,
-          message:'Invalid or expired token',
-          error : err
+  // First check for JWT in cookies (preferred for security)
+  let token = req.cookies?.jwt;
+  
+  // Fallback to Authorization header for backward compatibility
+  if (!token) {
+    let authHeader = req.headers.Authorization || req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer")) {
+      token = authHeader.split(" ")[1];
+    }
+  }
+  
+  if (!token) {
+    return res.status(401).json({
+      status: false,
+      message: "User is not authorized or Token is missing",
+    });
+  }
+  
+  try {
+    const decode = await promisify(jwt.verify)(token, SECRET_ACCESS);
+    if (decode) {
+      let result = await User.findById(decode.id).populate('company');
+      if (!result) {
+        return res.status(401).json({
+          status: false,
+          message: 'User not found',
         });
       }
+      console.log("result", result);
+      req.user = result;
+      next();
+    } else {
+      res.status(401).json({
+        status: false,
+        message: 'Unauthorized',
+      });
     }
-  } else { 
-    res.status(400).json({
-      status : false,
-      message:"User is not authorized or Token is missing",
-    })
+  } catch (err) {
+    res.status(401).json({
+      status: false,
+      message: 'Invalid or expired token',
+      error: err
+    });
   }
 });
   
@@ -191,7 +200,7 @@ const login = catchAsync ( async (req, res, next) => {
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
-    const user = await User.findOne({ email }, { _id: 1, password: 1, status: 1, corporateID: 1 }).select('+password').lean();
+    const user = await User.findOne({ email }).select('+password').lean();
     
     if (!user) {
         return res.status(200).json({ status: false, message: "Invalid Details" });
@@ -211,16 +220,24 @@ const login = catchAsync ( async (req, res, next) => {
    }
 
    const token = await signToken(user._id);
+  //  res.cookie('jwt', token, {
+  //   expires:new Date(Date.now() + 30*24*60*60*1000),
+  //   httpOnly:true,
+  //  });
    res.cookie('jwt', token, {
-    expires:new Date(Date.now() + 30*24*60*60*1000),
-    httpOnly:true,
-   });
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // Use true in production (HTTPS)
+    sameSite: 'Strict', // or 'Lax' for less strict
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
 
+  user.password = undefined;
+  user.confirmPassword = undefined;
    res.status(200).json({
     status :true,
     message:"Login Successfully !!",
     user : user,
-    token
+    // token
    });
 });
 
@@ -256,6 +273,23 @@ const employeesLisiting = catchAsync ( async (req, res) => {
     res.status(200).json({
      status:false,
      message: []
+    });
+  }
+});
+
+const employeesDocs = catchAsync ( async (req, res) => {
+  const employeeId = req.params.id;
+  const documents = await EmployeeDoc.find({ user: employeeId }).populate('added_by').sort({ createdAt: -1 });
+  console.log("documents", documents);
+  if (documents) {
+    res.status(200).json({
+      status: true,
+      documents: documents,
+    });
+  } else {
+    res.status(200).json({
+      status: false,
+      message: "No documents found for this employee.",
     });
   }
 });
@@ -501,5 +535,18 @@ const changePassword = async (req, res) => {
     }
 };
 
+const logout = catchAsync(async (req, res) => {
+  // Clear the JWT cookie
+  res.cookie('jwt', '', {
+    expires: new Date(Date.now() + 10 * 1000), // Expire in 10 seconds
+    httpOnly: true,
+  });
+  
+  res.status(200).json({
+    status: true,
+    message: 'Logged out successfully !!!'
+  });
+});
 
-module.exports = { changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword };
+
+module.exports = {  changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword, employeesDocs, logout };
