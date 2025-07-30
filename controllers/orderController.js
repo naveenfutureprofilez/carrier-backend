@@ -314,18 +314,26 @@ exports.addnote = catchAsync(async (req, res) => {
 
 exports.overview = catchAsync(async (req, res) => {
    let customercompletedPayments, customerpendingPayments, totalLoads, intransitLoads, completedLoads, pendingLoads, carriercompletedPayments, carrierpendingPayments;
+   const notDeletedFilter = {
+      created_by: req.user._id,
+      $or: [
+         { deletedAt: null },
+         { deletedAt: '' },
+         { deletedAt: { $exists: false } }
+      ],
+   };
    if(req.user.role === 1){
-      totalLoads = await Order.countDocuments({created_by: req.user._id});
-      intransitLoads = await Order.countDocuments({ order_status: 'intransit', created_by: req.user._id});
-      completedLoads = await Order.countDocuments({ order_status: 'completed', created_by: req.user._id});
-      pendingLoads = await Order.countDocuments({ order_status: 'added', created_by: req.user._id});
-      
+      totalLoads = await Order.countDocuments({notDeletedFilter});
+      intransitLoads = await Order.countDocuments({ order_status: 'intransit', ...notDeletedFilter });
+      completedLoads = await Order.countDocuments({ order_status: 'completed', ...notDeletedFilter });
+      pendingLoads = await Order.countDocuments({ order_status: 'added', ...notDeletedFilter });
+
       // carrier
-      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, created_by: req.user._id });
-      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid', created_by: req.user._id });
+      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, ...notDeletedFilter });
+      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid', ...notDeletedFilter });
       // customer
-      customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', created_by: req.user._id });
-      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, created_by: req.user._id });
+      customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', ...notDeletedFilter });
+      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, ...notDeletedFilter });
 
    } else {
       totalLoads = await Order.countDocuments();

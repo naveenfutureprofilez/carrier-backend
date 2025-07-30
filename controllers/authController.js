@@ -237,7 +237,7 @@ const login = catchAsync ( async (req, res, next) => {
     status :true,
     message:"Login Successfully !!",
     user : user,
-    // token
+    token
    });
 });
 
