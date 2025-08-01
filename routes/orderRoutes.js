@@ -5,6 +5,7 @@ const orderController = require('../controllers/orderController');
 const restrictOrderMiddleware = require('../middlewares/restrictOrderMiddleware');
 
 router.route('/order/add').post(validateToken, orderController.create_order);
+router.route('/order/update/:id').put(validateToken, restrictOrderMiddleware, orderController.update_order);
 router.route('/order/listings').get(validateToken, orderController.order_listing);
 router.route('/order/detail/:id').get(validateToken, orderController.order_detail);
 router.route('/order_docs/:id').get(validateToken, orderController.order_docs);

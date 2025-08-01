@@ -51,8 +51,29 @@ exports.create_order = catchAsync(async (req, res, next) => {
          order_status,
        } = req.body;
  
-      const lastOrder = await Order.findOne().sort({ serial_no: -1 });
-      const newOrderId = lastOrder ? parseInt(lastOrder.serial_no) + 1 : 1000;
+      // Generate serial number with retry mechanism for concurrent requests
+      let newOrderId;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (attempts < maxAttempts) {
+        const lastOrder = await Order.findOne().sort({ serial_no: -1 });
+        newOrderId = lastOrder ? parseInt(lastOrder.serial_no) + 1 : 1000;
+        
+        // Check if this serial number already exists
+        const existingOrder = await Order.findOne({ serial_no: newOrderId });
+        if (!existingOrder) {
+          break; // Serial number is unique, proceed
+        }
+        
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw new Error('Unable to generate unique serial number after multiple attempts');
+        }
+        
+        // Add small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       const order = await Order.create({
          company_name,
          serial_no : parseInt(newOrderId),
@@ -94,12 +115,43 @@ exports.create_order = catchAsync(async (req, res, next) => {
    }
 });
 
+exports.update_order = catchAsync(async (req, res, next) => {
+   try {
+      const updateData = req.body;
+      const order = await Order.findByIdAndUpdate(req.params.id, updateData, {
+         new: true, 
+         runValidators: true,
+      });
+      if(!order) {
+         return res.status(404).json({
+            status: false,
+            message: "Order not found."
+         });
+      }
+      res.status(200).json({
+         status: true,
+         order,
+         message: "Order updated successfully."
+      });
+   } catch (error) {
+      console.log(error);
+      res.status(400).json({
+         status: false,
+         message: "Failed to update order.",
+         error: error.message
+      });
+   }
+});
+
 exports.order_listing = catchAsync(async (req, res, next) => {
    const { search, customer_id, carrier_id, sortby, status, paymentStatus } = req.query;
    
-   console.log(req.query)
    const queryObj = {
-      $or: [{ deletedAt: null }]
+      $or: [
+         { deletedAt: null },
+         { deletedAt: '' },
+         { deletedAt: { $exists: false } }
+      ]
    };
 
    if(paymentStatus){
@@ -314,40 +366,41 @@ exports.addnote = catchAsync(async (req, res) => {
 
 exports.overview = catchAsync(async (req, res) => {
    let customercompletedPayments, customerpendingPayments, totalLoads, intransitLoads, completedLoads, pendingLoads, carriercompletedPayments, carrierpendingPayments;
-   const notDeletedFilter = {
-      created_by: req.user._id,
+   
+   // Base filter to exclude deleted orders
+   const baseDeletedFilter = {
       $or: [
          { deletedAt: null },
          { deletedAt: '' },
          { deletedAt: { $exists: false } }
-      ],
+      ]
    };
+   
+   let queryFilter;
    if(req.user.role === 1){
-      totalLoads = await Order.countDocuments({notDeletedFilter});
-      intransitLoads = await Order.countDocuments({ order_status: 'intransit', ...notDeletedFilter });
-      completedLoads = await Order.countDocuments({ order_status: 'completed', ...notDeletedFilter });
-      pendingLoads = await Order.countDocuments({ order_status: 'added', ...notDeletedFilter });
-
-      // carrier
-      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, ...notDeletedFilter });
-      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid', ...notDeletedFilter });
-      // customer
-      customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', ...notDeletedFilter });
-      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, ...notDeletedFilter });
-
+      // For regular users, include created_by filter
+      queryFilter = {
+         created_by: req.user._id,
+         ...baseDeletedFilter
+      };
    } else {
-      totalLoads = await Order.countDocuments();
-      intransitLoads = await Order.countDocuments({ order_status: 'intransit'});
-      completedLoads = await Order.countDocuments({ order_status: 'completed'});
-      pendingLoads = await Order.countDocuments({ order_status: 'added'});
-
-      // carrier
-      carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' } });
-      carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid'  });
-      // customer
-      customercompletedPayments = await Order.countDocuments({ customer_payment_status:  'paid'  });
-      customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' } });
+      // For admin users, only apply deleted filter
+      queryFilter = baseDeletedFilter;
    }
+   
+   // Count documents with proper filter
+   totalLoads = await Order.countDocuments(queryFilter);
+   intransitLoads = await Order.countDocuments({ order_status: 'intransit', ...queryFilter });
+   completedLoads = await Order.countDocuments({ order_status: 'completed', ...queryFilter });
+   pendingLoads = await Order.countDocuments({ order_status: 'added', ...queryFilter });
+
+   // carrier payments
+   carrierpendingPayments = await Order.countDocuments({ carrier_payment_status: { $ne: 'paid' }, ...queryFilter });
+   carriercompletedPayments = await Order.countDocuments({ carrier_payment_status: 'paid', ...queryFilter });
+   
+   // customer payments
+   customercompletedPayments = await Order.countDocuments({ customer_payment_status: 'paid', ...queryFilter });
+   customerpendingPayments = await Order.countDocuments({ customer_payment_status: { $ne: 'paid' }, ...queryFilter });
    res.json({
       status: true,
       message: 'Dashboard data retrieved successfully.',
