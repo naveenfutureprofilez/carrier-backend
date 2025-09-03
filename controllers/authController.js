@@ -465,14 +465,21 @@ const resetpassword = catchAsync ( async (req, res, next) => {
 });
 
 const addCompanyInfo = catchAsync ( async (req, res, next) => {
-  const {name, email, phone, address, companyID} = req.body;
+  const {name, email, phone, address, companyID, bank_name, account_name, account_number, routing_number, remittance_primary_email, remittance_secondary_email, rate_confirmation_terms} = req.body;
   if(companyID){
-    const existing = await Company.findOne({companyID : companyID});
+    const existing = await Company.findOne({_id : companyID});
     if(existing){
-      existing.name = name !== '' || name !== undefined ? name : existing.name;
-      existing.email = email !== '' || email !== undefined ? email : existing.email;
-      existing.address = address  !== '' || address !== undefined ? address : existing.address;
-      existing.phone = phone !== '' || phone !== undefined ? phone : existing.phone;
+      existing.name = name !== '' && name !== undefined ? name : existing.name;
+      existing.email = email !== '' && email !== undefined ? email : existing.email;
+      existing.address = address  !== '' && address !== undefined ? address : existing.address;
+      existing.phone = phone !== '' && phone !== undefined ? phone : existing.phone;
+      existing.bank_name = bank_name !== '' && bank_name !== undefined ? bank_name : existing.bank_name;
+      existing.account_name = account_name !== '' && account_name !== undefined ? account_name : existing.account_name;
+      existing.account_number = account_number !== '' && account_number !== undefined ? account_number : existing.account_number;
+      existing.routing_number = routing_number !== '' && routing_number !== undefined ? routing_number : existing.routing_number;
+      existing.remittance_primary_email = remittance_primary_email !== '' && remittance_primary_email !== undefined ? remittance_primary_email : existing.remittance_primary_email;
+      existing.remittance_secondary_email = remittance_secondary_email !== '' && remittance_secondary_email !== undefined ? remittance_secondary_email : existing.remittance_secondary_email;
+      existing.rate_confirmation_terms = rate_confirmation_terms !== '' && rate_confirmation_terms !== undefined ? rate_confirmation_terms : existing.rate_confirmation_terms;
       await existing.save();
       return res.send({
         status: true,
@@ -487,6 +494,13 @@ const addCompanyInfo = catchAsync ( async (req, res, next) => {
     email: email,
     address: address,
     phone: phone,
+    bank_name: bank_name,
+    account_name: account_name,
+    account_number: account_number,
+    routing_number: routing_number,
+    remittance_primary_email: remittance_primary_email,
+    remittance_secondary_email: remittance_secondary_email,
+    rate_confirmation_terms: rate_confirmation_terms,
   }).then(result => {
     res.send({
       status: true,

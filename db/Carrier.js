@@ -24,6 +24,22 @@ const schema = new mongoose.Schema({
     secondary_email: {
         type: String,
     },
+    emails: [{
+        email: {
+            type: String,
+            required: true,
+            trim: true,
+            lowercase: true,
+        },
+        is_primary: {
+            type: Boolean,
+            default: false
+        },
+        created_at: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     country: {
         type: String,
         required: [true, 'Please enter carrier country.'],

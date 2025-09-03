@@ -9,7 +9,7 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
     assigned_to,
     secondary_email,
     secondary_phone,
-    email, address, country, state, city, zipcode } = req.body;
+    email, emails, address, country, state, city, zipcode } = req.body;
 
   const existingCustomer = await Customer.findOne({ 
     $or: [{ phone }, { email }] 
@@ -37,12 +37,33 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
   const lastCustomer = await Customer.findOne().sort({ customerCode: -1 });
   const newCustomerNo = lastCustomer ? parseInt(lastCustomer.customerCode) + 1 : 1000;
 
+  // Process emails array - maintain backward compatibility
+  let emailsArray = [];
+  
+  // If new emails array is provided, use it
+  if (emails && Array.isArray(emails) && emails.length > 0) {
+    emailsArray = emails.map((emailItem, index) => ({
+      email: emailItem.email || emailItem, // Support both object and string format
+      is_primary: emailItem.is_primary || index === 0, // First email is primary by default
+      created_at: new Date()
+    }));
+  } else {
+    // Fallback to legacy fields for backward compatibility
+    if (email) {
+      emailsArray.push({ email, is_primary: true, created_at: new Date() });
+    }
+    if (secondary_email) {
+      emailsArray.push({ email: secondary_email, is_primary: false, created_at: new Date() });
+    }
+  }
+
  await Customer.syncIndexes();
  Customer.create({
    name: name,
    email: email,
    secondary_email: secondary_email,
    secondary_phone: secondary_phone,
+   emails: emailsArray,
    customerCode: newCustomerNo,
    phone: phone,
    address: address,
@@ -122,7 +143,7 @@ exports.customerDetails = catchAsync(async (req, res, next) => {
 });
 
 exports.updateCustomer = catchAsync(async (req, res, next) => {
-  const { name, secondary_email, secondary_phone, mc_code, phone, email, address, country, state, city, zipcode, assigned_to } = req.body;
+  const { name, secondary_email, secondary_phone, mc_code, phone, email, emails, address, country, state, city, zipcode, assigned_to } = req.body;
   
   if (mc_code) {
     const existingCustomer = await Customer.findOne({ mc_code: mc_code, _id: { $ne: req.params.id } });
@@ -134,12 +155,33 @@ exports.updateCustomer = catchAsync(async (req, res, next) => {
     }
   }
 
+  // Process emails array - maintain backward compatibility
+  let emailsArray = [];
+  
+  // If new emails array is provided, use it
+  if (emails && Array.isArray(emails) && emails.length > 0) {
+    emailsArray = emails.map((emailItem, index) => ({
+      email: emailItem.email || emailItem, // Support both object and string format
+      is_primary: emailItem.is_primary || index === 0, // First email is primary by default
+      created_at: emailItem.created_at || new Date()
+    }));
+  } else {
+    // Fallback to legacy fields for backward compatibility
+    if (email) {
+      emailsArray.push({ email, is_primary: true, created_at: new Date() });
+    }
+    if (secondary_email) {
+      emailsArray.push({ email: secondary_email, is_primary: false, created_at: new Date() });
+    }
+  }
+
   await Customer.syncIndexes();
   const updatedUser = await Customer.findByIdAndUpdate(req.params.id, {
     name: name,
     email: email,
     secondary_email: secondary_email,
     secondary_phone: secondary_phone,
+    emails: emailsArray,
     mc_code: mc_code,
     phone: phone,
     address: address,

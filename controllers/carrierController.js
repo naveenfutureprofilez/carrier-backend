@@ -6,7 +6,7 @@ const logger = require("../utils/logger");
 const axios = require("axios");
  
 exports.addCarrier = catchAsync(async (req, res, next) => {
-  const { name, phone, email, location, country, state, city, zipcode, secondary_email, secondary_phone, mc_code } = req.body;
+  const { name, phone, email, emails, location, country, state, city, zipcode, secondary_email, secondary_phone, mc_code } = req.body;
   const existingCarrier = await Carrier.findOne({mc_code});
     if (existingCarrier) {
     return res.status(200).json({
@@ -25,10 +25,33 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
     }
   }
 
+  // Process emails array - maintain backward compatibility
+  let emailsArray = [];
+  
+  // If new emails array is provided, use it
+  if (emails && Array.isArray(emails) && emails.length > 0) {
+    emailsArray = emails.map((emailItem, index) => ({
+      email: emailItem.email || emailItem, // Support both object and string format
+      is_primary: emailItem.is_primary || index === 0, // First email is primary by default
+      created_at: new Date()
+    }));
+  } else {
+    // Fallback to legacy fields for backward compatibility
+    if (email) {
+      emailsArray.push({ email, is_primary: true, created_at: new Date() });
+    }
+    if (secondary_email) {
+      emailsArray.push({ email: secondary_email, is_primary: false, created_at: new Date() });
+    }
+  }
+
   await Carrier.syncIndexes();
   Carrier.create({
     name: name,
     email: email,
+    secondary_email: secondary_email,
+    secondary_phone: secondary_phone,
+    emails: emailsArray,
     location: location,
     phone: phone,
     carrierID: carrierID,
@@ -38,9 +61,7 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
     zipcode: zipcode,
     created_by:req.user._id,
     mc_code: mc_code,
-    company:req.user && req.user.company ? req.user.company._id : null,
-    secondary_email: secondary_email,
-    secondary_phone: secondary_phone
+    company:req.user && req.user.company ? req.user.company._id : null
   }).then(result => {
     res.send({
       status: true,
@@ -120,7 +141,7 @@ exports.deleteCarrier = catchAsync(async (req, res) => {
 
 exports.updateCarrier = catchAsync(async (req, res, next) => {
   try { 
-    const { mc_code,  name, phone, email, location, country, state, city, zipcode, secondary_email, secondary_phone } = req.body;
+    const { mc_code, name, phone, email, emails, location, country, state, city, zipcode, secondary_email, secondary_phone } = req.body;
     if (mc_code) {
       const existingCarrier = await Carrier.findOne({ mc_code: mc_code, _id: {$ne: req.params.id }});
       if (existingCarrier) {
@@ -130,7 +151,28 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
         });
       }
     }
-    const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, {
+
+    // Process emails array - maintain backward compatibility
+    let emailsArray = [];
+    
+    // If new emails array is provided, use it
+    if (emails && Array.isArray(emails) && emails.length > 0) {
+      emailsArray = emails.map((emailItem, index) => ({
+        email: emailItem.email || emailItem, // Support both object and string format
+        is_primary: emailItem.is_primary || index === 0, // First email is primary by default
+        created_at: emailItem.created_at || new Date()
+      }));
+    } else {
+      // Fallback to legacy fields for backward compatibility
+      if (email) {
+        emailsArray.push({ email, is_primary: true, created_at: new Date() });
+      }
+      if (secondary_email) {
+        emailsArray.push({ email: secondary_email, is_primary: false, created_at: new Date() });
+      }
+    }
+    // Build update object with processed emails
+    const updateData = {
         name: name,
         email: email,
         location: location,
@@ -142,7 +184,14 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
         mc_code: mc_code,
         secondary_email: secondary_email,
         secondary_phone: secondary_phone
-      },{
+    };
+
+    // Include emails array if it was processed
+    if (emailsArray.length > 0) {
+      updateData.emails = emailsArray;
+    }
+
+    const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, updateData, {
       new: true, 
       runValidators: true,
     });
