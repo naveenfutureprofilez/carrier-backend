@@ -277,21 +277,75 @@ const employeesLisiting = catchAsync ( async (req, res) => {
   }
 });
 
-const employeesDocs = catchAsync ( async (req, res) => {
+const employeeDetail = catchAsync ( async (req, res) => {
   const employeeId = req.params.id;
-  const documents = await EmployeeDoc.find({ user: employeeId }).populate('added_by').sort({ createdAt: -1 });
-  console.log("documents", documents);
-  if (documents) {
-    res.status(200).json({
-      status: true,
-      documents: documents,
-    });
-  } else {
-    res.status(200).json({
+  
+  // Validate employee ID
+  if (!employeeId || employeeId === 'undefined' || employeeId === 'null') {
+    return res.status(400).json({
       status: false,
-      message: "No documents found for this employee.",
+      message: "Valid employee ID is required.",
+      employee: null
     });
   }
+  
+  // Check if employeeId is a valid ObjectId
+  if (!employeeId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid employee ID format.",
+      employee: null
+    });
+  }
+  
+  const employee = await User.findById(employeeId).populate('company');
+  
+  if (!employee) {
+    return res.status(404).json({
+      status: false,
+      message: "Employee not found.",
+      employee: null
+    });
+  }
+  
+  // Remove sensitive information
+  employee.password = undefined;
+  employee.confirmPassword = undefined;
+  
+  res.status(200).json({
+    status: true,
+    employee: employee,
+  });
+});
+
+const employeesDocs = catchAsync ( async (req, res) => {
+  const employeeId = req.params.id;
+  
+  // Validate employee ID
+  if (!employeeId || employeeId === 'undefined' || employeeId === 'null') {
+    return res.status(400).json({
+      status: false,
+      message: "Valid employee ID is required.",
+      documents: []
+    });
+  }
+  
+  // Check if employeeId is a valid ObjectId
+  if (!employeeId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid employee ID format.",
+      documents: []
+    });
+  }
+  
+  const documents = await EmployeeDoc.find({ user: employeeId }).populate('added_by').sort({ createdAt: -1 });
+  console.log("documents", documents);
+  
+  res.status(200).json({
+    status: true,
+    documents: documents || [],
+  });
 });
 
 const forgotPassword = catchAsync ( async (req, res, next) => {
@@ -563,4 +617,4 @@ const logout = catchAsync(async (req, res) => {
 });
 
 
-module.exports = {  changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword, employeesDocs, logout };
+module.exports = {  changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword, employeesDocs, employeeDetail, logout };
