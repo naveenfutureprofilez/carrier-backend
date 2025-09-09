@@ -176,25 +176,36 @@ exports.order_listing = catchAsync(async (req, res, next) => {
    }
 
    if (search && search.length >1) {
-      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      queryObj.serial_no = { $regex: new RegExp(safeSearch, 'i') };
+      const searchValue = search.trim();
+      // Check if search is a number for serial_no search
+      if (!isNaN(searchValue)) {
+         queryObj.serial_no = parseInt(searchValue);
+      } else {
+         // For non-numeric searches, you might want to search in other fields
+         // Currently keeping empty to only search serial numbers
+         queryObj.serial_no = -1; // This will not match any valid serial_no
+      }
    }
 
-   console.log("queryObj",queryObj)
-   let Query = new APIFeatures(
-      Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
-      req.query
-   ).sort({ createdAt: 1 });
+      // Set default sort to serial_no descending if not provided
+      if (!req.query.sort) {
+         req.query.sort = '-serial_no';
+      }
+      
+      let Query = new APIFeatures(
+         Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
+         req.query
+      ).sort();
 
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   if(sortby !== 'date'){
-      const statusPriority = { added: 0, intransit: 1, completed: 2 };
-      data.sort((a, b) => {
-         return statusPriority[a.order_status] - statusPriority[b.order_status];
-      });
-   }
+   // if(sortby !== 'date'){
+   //    const statusPriority = { added: 0, intransit: 1, completed: 2 };
+   //    data.sort((a, b) => {
+   //       return statusPriority[a.order_status] - statusPriority[b.order_status];
+   //    });
+   // }
 
    res.json({
       status: true,
@@ -214,19 +225,25 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       if (search && search.length >1) {
          const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
          queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
-      }
-      let Query = new APIFeatures(
-         Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
-         req.query
-      ).sort({ createdAt: 1 });
+      } 
+      
+   // Set default sort to serial_no descending if not provided
+   if (!req.query.sort) {
+      req.query.sort = '-serial_no';
+   }
+   
+   let Query = new APIFeatures(
+      Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
+      req.query
+   ).sort();
 
       const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
       let data = await query;
 
-      const statusPriority = { added: 0, intransit: 1, completed: 2 };
-      data.sort((a, b) => {
-         return statusPriority[a.order_status] - statusPriority[b.order_status];
-      });
+      // const statusPriority = { added: 0, intransit: 1, completed: 2 };
+      // data.sort((a, b) => {
+      //    return statusPriority[a.order_status] - statusPriority[b.order_status];
+      // });
 
       res.json({
          status: true,
@@ -671,10 +688,15 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
       queryObj.carrier = carrier_id;
    }
 
+   // Set default sort to serial_no descending if not provided
+   if (!req.query.sort) {
+      req.query.sort = '-serial_no';
+   }
+   
    let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
       req.query
-   ).sort({ createdAt: 1 });
+   ).sort();
 
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
@@ -714,10 +736,15 @@ exports.all_payments_status = catchAsync(async (req, res, next) => {
       }
    }
     
+   // Set default sort to serial_no descending if not provided
+   if (!req.query.sort) {
+      req.query.sort = '-serial_no';
+   }
+   
    let Query = new APIFeatures(
       Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
       req.query
-   ).sort({ createdAt: 1 });
+   ).sort();
 
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;

@@ -12,8 +12,7 @@ const schema = new mongo.Schema({
         required:true,
     },
     serial_no:  {
-        type: String,
-        minlength: 1,
+        type: Number,
         unique:true,
         min: 0,
     },
