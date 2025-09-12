@@ -41,6 +41,7 @@ app.use("/user", require('./routes/userRoutes'));
 app.use("", require('./routes/carrierRoutes'));
 app.use("", require('./routes/orderRoutes'));
 app.use("", require('./routes/customerRoutes'));
+app.use("/api/migration", require('./routes/migrationRoutes'));
 app.use(express.json());
 const path = require('path');
 
