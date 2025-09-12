@@ -39,6 +39,21 @@ async function generateUniqueSerialNumber() {
          Counter = mongoose.model('counters', counterSchema);
       }
       
+      // Check if counter exists, if not, initialize it with the max existing serial number
+      let existingCounter = await Counter.findOne({ _id: 'order_serial' });
+      
+      if (!existingCounter) {
+         // Find the maximum existing serial number in orders
+         const maxOrder = await Order.findOne({}, { serial_no: 1 }).sort({ serial_no: -1 }).lean();
+         const maxSerialNo = maxOrder ? maxOrder.serial_no : 1000;
+         
+         // Initialize counter with max existing serial number
+         existingCounter = await Counter.create({
+            _id: 'order_serial',
+            sequence_value: maxSerialNo
+         });
+      }
+      
       // Atomically increment and get the next serial number with retry mechanism
       let attempts = 0;
       const maxAttempts = 3;
@@ -48,7 +63,7 @@ async function generateUniqueSerialNumber() {
             const counter = await Counter.findOneAndUpdate(
                { _id: 'order_serial' },
                { $inc: { sequence_value: 1 } },
-               { new: true, upsert: true }
+               { new: true }
             );
             
             if (!counter || !counter.sequence_value) {
@@ -730,12 +745,13 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   if(sortby !== 'date'){
-      const statusPriority = { added: 0, intransit: 1, completed: 2 };
-      data.sort((a, b) => {
-         return statusPriority[a.order_status] - statusPriority[b.order_status];
-      });
-   }
+   // Removed client-side sorting to preserve descending serial number order
+   // if(sortby !== 'date'){
+   //    const statusPriority = { added: 0, intransit: 1, completed: 2 };
+   //    data.sort((a, b) => {
+   //       return statusPriority[a.order_status] - statusPriority[b.order_status];
+   //    });
+   // }
    res.json({
       status: true,
       orders: data,
