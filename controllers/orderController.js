@@ -21,6 +21,56 @@ async function CreatePaymentLog(user, order, status, method, type, approval) {
    return payment;
 }
 
+// Helper function to generate unique serial number atomically
+async function generateUniqueSerialNumber() {
+   const mongoose = require('mongoose');
+   
+   try {
+      // Create a counter collection schema if it doesn't exist
+      const counterSchema = new mongoose.Schema({
+         _id: { type: String, required: true },
+         sequence_value: { type: Number, default: 1000 }
+      });
+      
+      let Counter;
+      try {
+         Counter = mongoose.model('counters');
+      } catch (error) {
+         Counter = mongoose.model('counters', counterSchema);
+      }
+      
+      // Atomically increment and get the next serial number with retry mechanism
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+         try {
+            const counter = await Counter.findOneAndUpdate(
+               { _id: 'order_serial' },
+               { $inc: { sequence_value: 1 } },
+               { new: true, upsert: true }
+            );
+            
+            if (!counter || !counter.sequence_value) {
+               throw new Error('Failed to generate serial number: Invalid counter response');
+            }
+            
+            return counter.sequence_value;
+         } catch (error) {
+            attempts++;
+            if (attempts >= maxAttempts) {
+               throw new Error(`Failed to generate unique serial number after ${maxAttempts} attempts: ${error.message}`);
+            }
+            
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 100));
+         }
+      }
+   } catch (error) {
+      throw new Error(`Serial number generation failed: ${error.message}`);
+   }
+}
+
 exports.create_order = catchAsync(async (req, res, next) => {
    try {
 
@@ -51,29 +101,8 @@ exports.create_order = catchAsync(async (req, res, next) => {
          order_status,
        } = req.body;
  
-      // Generate serial number with retry mechanism for concurrent requests
-      let newOrderId;
-      let attempts = 0;
-      const maxAttempts = 5;
-      
-      while (attempts < maxAttempts) {
-        const lastOrder = await Order.findOne().sort({ serial_no: -1 });
-        newOrderId = lastOrder ? parseInt(lastOrder.serial_no) + 1 : 1000;
-        
-        // Check if this serial number already exists
-        const existingOrder = await Order.findOne({ serial_no: newOrderId });
-        if (!existingOrder) {
-          break; // Serial number is unique, proceed
-        }
-        
-        attempts++;
-        if (attempts >= maxAttempts) {
-          throw new Error('Unable to generate unique serial number after multiple attempts');
-        }
-        
-        // Add small delay before retry
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      // Generate unique serial number atomically
+      const newOrderId = await generateUniqueSerialNumber();
       const order = await Order.create({
          company_name,
          serial_no : parseInt(newOrderId),
