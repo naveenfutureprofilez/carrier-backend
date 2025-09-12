@@ -40,7 +40,7 @@ async function generateUniqueSerialNumber() {
       }
       
       // Check if counter exists, if not, initialize it with the max existing serial number
-      let existingCounter = await Counter.findOne({ _id: 'order_serial' });
+      let existingCounter = await Counter.findOne({ _id: 'serial_no' });
       
       if (!existingCounter) {
          // Find the maximum existing serial number in orders
@@ -49,7 +49,7 @@ async function generateUniqueSerialNumber() {
          
          // Initialize counter with max existing serial number
          existingCounter = await Counter.create({
-            _id: 'order_serial',
+            _id: 'serial_no',
             sequence_value: maxSerialNo
          });
       }
@@ -61,7 +61,7 @@ async function generateUniqueSerialNumber() {
       while (attempts < maxAttempts) {
          try {
             const counter = await Counter.findOneAndUpdate(
-               { _id: 'order_serial' },
+               { _id: 'serial_no' },
                { $inc: { sequence_value: 1 } },
                { new: true }
             );
