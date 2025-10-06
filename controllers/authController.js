@@ -11,6 +11,8 @@ const SECRET_ACCESS = process.env && process.env.SECRET_ACCESS || "MYSECRET";
 const bcrypt = require('bcrypt');
 const Company = require("../db/Company");
 const EmployeeDoc = require("../db/EmployeeDoc");
+const Tenant = require("../db/Tenant");
+const SuperAdmin = require("../db/SuperAdmin");
 
 const signToken = async (id) => {
   const token = jwt.sign(
@@ -288,7 +290,6 @@ const employeeDetail = catchAsync ( async (req, res) => {
       employee: null
     });
   }
-  
   // Check if employeeId is a valid ObjectId
   if (!employeeId.match(/^[0-9a-fA-F]{24}$/)) {
     return res.status(400).json({
@@ -297,7 +298,6 @@ const employeeDetail = catchAsync ( async (req, res) => {
       employee: null
     });
   }
-  
   const employee = await User.findById(employeeId).populate('company');
   
   if (!employee) {
@@ -617,4 +617,311 @@ const logout = catchAsync(async (req, res) => {
 });
 
 
-module.exports = {  changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, validateToken, profile, forgotPassword, resetpassword, employeesDocs, employeeDetail, logout };
+/**
+ * Test debug endpoint
+ */
+const debugTest = (req, res) => {
+  console.log('🚨 DEBUG TEST ENDPOINT CALLED');
+  res.json({ debug: 'working', timestamp: new Date() });
+};
+
+/**
+ * Test Super Admin Login
+ */
+const testSuperAdminLogin = catchAsync(async (req, res, next) => {
+  const { email, password } = req.body;
+  
+  console.log('🗺 TEST SUPER ADMIN LOGIN CALLED');
+  console.log('- email:', email);
+  console.log('- password length:', password?.length);
+  
+  try {
+    const superAdmin = await SuperAdmin.findOne({ email }).select('+password');
+    console.log('👤 SuperAdmin found:', !!superAdmin);
+    
+    if (!superAdmin) {
+      return res.json({ status: false, message: 'SuperAdmin not found', debug: true });
+    }
+    
+    const passwordMatch = await bcrypt.compare(password, superAdmin.password);
+    console.log('🔑 Password match:', passwordMatch);
+    
+    if (!passwordMatch) {
+      return res.json({ status: false, message: 'Password does not match', debug: true });
+    }
+    
+    if (superAdmin.status !== 'active') {
+      return res.json({ status: false, message: 'SuperAdmin not active', debug: true });
+    }
+    
+    const token = await signToken(superAdmin.userId);
+    const user = await User.findById(superAdmin.userId).populate('company');
+    
+    res.json({
+      status: true,
+      message: 'Test super admin login successful!',
+      debug: true,
+      superAdmin: {
+        name: superAdmin.name,
+        email: superAdmin.email,
+        status: superAdmin.status
+      },
+      user: user ? {
+        name: user.name,
+        email: user.email,
+        role: user.role
+      } : null,
+      hasToken: !!token
+    });
+    
+  } catch (error) {
+    console.error('❌ Test login error:', error);
+    res.json({ status: false, message: 'Error occurred', error: error.message, debug: true });
+  }
+});
+
+/**
+ * Multi-tenant login - handles both regular users and super admins
+ */
+const multiTenantLogin = catchAsync(async (req, res, next) => {
+  const { email, password, tenantId, isSuperAdmin } = req.body;
+  
+  if (!email || !password) {
+    console.log('❌ Missing email or password');
+    return next(new AppError("Email and password are required!", 400));
+  }
+  
+  try {
+    // Handle super admin login
+    if (isSuperAdmin) {
+      const superAdmin = await SuperAdmin.findOne({ email }).select('+password');
+      
+      if (!superAdmin || !(await bcrypt.compare(password, superAdmin.password))) {
+        console.log('❌ Super admin credentials invalid');
+        return res.status(200).json({
+          status: false,
+          message: "Invalid super admin credentials"
+        });
+      }
+      
+      if (superAdmin.status !== 'active') {
+        console.log('❌ Super admin account inactive');
+        return res.status(200).json({
+          status: false,
+          message: "Super admin account is inactive"
+        });
+      }
+      
+      // Create JWT token with the user ID (not superAdmin ID)
+      const token = await signToken(superAdmin.userId);
+      
+      res.cookie('jwt', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+      
+      // Get the actual user record
+      const user = await User.findById(superAdmin.userId).populate('company');
+      user.password = undefined;
+      
+      // Update super admin's last login
+      superAdmin.lastLogin = new Date();
+      await superAdmin.save({ validateBeforeSave: false });
+      
+      return res.status(200).json({
+        status: true,
+        message: "Super admin login successful!",
+        user,
+        isSuperAdmin: true,
+        token
+      });
+    }
+    
+    if (!tenantId) {
+      console.log('❌ Missing tenantId for regular login');
+      return res.status(200).json({
+        status: false,
+        message: "Tenant ID is required for regular login"
+      });
+    }
+    
+    console.log('🔍 Looking up tenant with tenantId:', tenantId);
+    
+    // First, let's see what tenants exist in the database
+    const allTenants = await Tenant.find({});
+    console.log('📊 All tenants in database:');
+    allTenants.forEach((t, index) => {
+      console.log(`  ${index + 1}. tenantId: "${t.tenantId}" (${typeof t.tenantId}), status: "${t.status}", name: "${t.name}", subdomain: "${t.subdomain}"`);
+    });
+    
+    // Check if we can find the tenant without status filter first
+    let tenantAny = await Tenant.findOne({ tenantId });
+    console.log('🔎 Tenant lookup by tenantId without status filter:', tenantAny ? 'FOUND' : 'NOT FOUND');
+    
+    // If not found by tenantId, try by subdomain (for backward compatibility)
+    if (!tenantAny) {
+      console.log('🔎 Tenant not found by tenantId, trying subdomain lookup...');
+      tenantAny = await Tenant.findOne({ subdomain: tenantId });
+      console.log('🔎 Tenant lookup by subdomain:', tenantAny ? 'FOUND' : 'NOT FOUND');
+      
+      if (tenantAny) {
+        console.log('ℹ️ Found tenant by subdomain - this means frontend is using subdomain as tenantId');
+        console.log('   Using actual tenantId for further processing:', tenantAny.tenantId);
+      }
+    }
+    
+    if (tenantAny) {
+      console.log('   Found tenant details:', {
+        tenantId: tenantAny.tenantId,
+        name: tenantAny.name,
+        status: tenantAny.status,
+        subdomain: tenantAny.subdomain
+      });
+    }
+    
+    // Now try with the status filter using the resolved tenant
+    console.log('🔎 Attempting tenant lookup with status filter: { $in: ["active", "trial"] }');
+    const actualTenantId = tenantAny ? tenantAny.tenantId : tenantId;
+    console.log('🔍 Using actualTenantId for status lookup:', actualTenantId);
+    
+    const tenant = await Tenant.findOne({ 
+      tenantId: actualTenantId, 
+      status: { $in: ['active', 'trial'] } 
+    });
+    
+    console.log('🔍 Tenant lookup result:', tenant ? 'FOUND' : 'NOT FOUND');
+    if (tenant) {
+      console.log('✅ Tenant found:', {
+        tenantId: tenant.tenantId,
+        name: tenant.name,
+        status: tenant.status,
+        subdomain: tenant.subdomain
+      });
+    }
+    
+    if (!tenant) {
+      console.log('❌ Tenant not found or inactive - returning error');
+      console.log('🔍 Debug: Looking for exact tenantId match...');
+      
+      // Try different search variations
+      const exactMatch = await Tenant.findOne({ tenantId: tenantId });
+      const trimmedMatch = await Tenant.findOne({ tenantId: tenantId?.trim() });
+      const regexMatch = await Tenant.findOne({ tenantId: { $regex: new RegExp(tenantId, 'i') } });
+      
+      console.log('🔍 Exact match result:', exactMatch ? 'FOUND' : 'NOT FOUND');
+      console.log('🔍 Trimmed match result:', trimmedMatch ? 'FOUND' : 'NOT FOUND');
+      console.log('🔍 Regex match result:', regexMatch ? 'FOUND' : 'NOT FOUND');
+      
+      return res.status(200).json({
+        status: false,
+        message: "Company not found or inactive"
+      });
+    }
+    
+    // Find user within the tenant
+    console.log('👤 Looking up user with email:', email, 'and actualTenantId:', actualTenantId);
+    
+    // First check all users with this email
+    const allUsersWithEmail = await User.find({ email });
+    console.log('📋 All users with this email:', allUsersWithEmail.length);
+    allUsersWithEmail.forEach((u, index) => {
+      console.log(`  ${index + 1}. email: "${u.email}", tenantId: "${u.tenantId}", corporateId: "${u.corporateId}", status: "${u.status}"`);
+    });
+    
+    const user = await User.findOne({ 
+      email, 
+      tenantId: actualTenantId 
+    }).select('+password').populate('company');
+    
+    console.log('👤 User lookup result:', user ? 'FOUND' : 'NOT FOUND');
+    if (user) {
+      console.log('✅ User found:', {
+        email: user.email,
+        tenantId: user.tenantId,
+        corporateId: user.corporateId,
+        status: user.status,
+        role: user.role,
+        is_admin: user.is_admin
+      });
+    }
+    
+    if (!user) {
+      console.log('❌ User not found - returning invalid credentials');
+      return res.status(200).json({
+        status: false,
+        message: "Invalid credentials"
+      });
+    }
+    
+    if (user.status === 'inactive') {
+      console.log('❌ User account is inactive');
+      return res.status(200).json({
+        status: false,
+        message: "Your account is suspended!"
+      });
+    }
+    
+    console.log('🔓 Checking password for user');
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    console.log('🔓 Password match result:', passwordMatch);
+    
+    if (!passwordMatch) {
+      console.log('❌ Password does not match - returning invalid credentials');
+      return res.status(200).json({
+        status: false,
+        message: "Invalid credentials"
+      });
+    }
+    
+    console.log('🎉 All validations passed - generating token');
+    const token = await signToken(user._id);
+    console.log('📝 Token generated successfully');
+    
+    // Set cookie with proper configuration for cross-origin requests
+    res.cookie('jwt', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Only secure in production
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // Allow cross-origin in production
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      domain: process.env.NODE_ENV === 'production' ? '.logistikore.com' : undefined // Allow subdomain sharing
+    });
+    
+    console.log('🍪 Cookie set with config:', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
+      maxAge: '7 days',
+      domain: process.env.NODE_ENV === 'production' ? '.logistikore.com' : 'none'
+    });
+    
+    user.password = undefined;
+    
+    console.log('✅ MULTITENANT LOGIN SUCCESS - Returning success response');
+    console.log('🔐 MULTITENANT LOGIN DEBUGGING END');
+    
+    res.status(200).json({
+      status: true,
+      message: "Login successful!",
+      user,
+      tenant: {
+        tenantId: tenant.tenantId,
+        name: tenant.name,
+        subdomain: tenant.subdomain
+      },
+      token
+    });
+    
+  } catch (error) {
+    console.error('❌ MULTITENANT LOGIN ERROR:', error);
+    console.error('❌ Stack trace:', error.stack);
+    console.log('🔐 MULTITENANT LOGIN DEBUGGING END (ERROR)');
+    return res.status(500).json({
+      status: false,
+      message: "Login failed. Please try again."
+    });
+  }
+});
+
+module.exports = { changePassword, addCompanyInfo, suspandUser, editUser, employeesLisiting, signup, login, multiTenantLogin, validateToken, profile, forgotPassword, resetpassword, employeesDocs, employeeDetail, logout, debugTest, testSuperAdminLogin };

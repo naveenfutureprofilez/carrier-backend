@@ -42,6 +42,9 @@ app.use("", require('./routes/carrierRoutes'));
 app.use("", require('./routes/orderRoutes'));
 app.use("", require('./routes/customerRoutes'));
 app.use("/api/migration", require('./routes/migrationRoutes'));
+app.use("/api/tenant-admin", require('./routes/tenantAdmin'));
+app.use("/api/super-admin", require('./routes/superAdmin'));
+app.use("/debug", require('./routes/debug'));
 app.use(express.json());
 const path = require('path');
 

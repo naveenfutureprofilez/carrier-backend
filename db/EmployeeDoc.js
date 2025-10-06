@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
+   tenantId: { 
+      type: String, 
+      required: true, 
+      index: true,
+      default: 'legacy_tenant_001' // Default for existing data migration
+   },
    name: { type:String },
    mime: {
       type:String,

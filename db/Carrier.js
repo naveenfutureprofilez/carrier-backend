@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
+    tenantId: { 
+        type: String, 
+        required: true, 
+        index: true,
+        default: 'legacy_tenant_001' // Default for existing data migration
+    },
     company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies' },
     name: {
         type: String,
@@ -74,6 +80,12 @@ const schema = new mongoose.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
+
+// Compound indexes for multi-tenant performance
+schema.index({ tenantId: 1, email: 1 }, { unique: true });
+schema.index({ tenantId: 1, carrierID: 1 }, { unique: true });
+schema.index({ tenantId: 1, mc_code: 1 });
+schema.index({ tenantId: 1, createdAt: -1 });
 
 const Carrier = mongoose.model('carriers', schema);
 module.exports = Carrier;

@@ -6,6 +6,12 @@ const schema = new mongo.Schema({
     //     minlength: 1,
     //     required:[true, 'Please enter customer order number.'],
     // }, 
+    tenantId: { 
+        type: String, 
+        required: true, 
+        index: true,
+        default: 'legacy_tenant_001' // Default for existing data migration
+    },
     company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies' },
     company_name:{ 
         type:String,
@@ -172,6 +178,15 @@ schema.virtual('profit').get(function () {
     const profit = totalAmount - commission - carrierAmount;
     return profit;
 });
+
+// Compound indexes for multi-tenant performance
+schema.index({ tenantId: 1, serial_no: 1 }, { unique: true });
+schema.index({ tenantId: 1, createdAt: -1 });
+schema.index({ tenantId: 1, customer: 1 });
+schema.index({ tenantId: 1, carrier: 1 });
+schema.index({ tenantId: 1, order_status: 1 });
+schema.index({ tenantId: 1, customer_payment_status: 1 });
+schema.index({ tenantId: 1, carrier_payment_status: 1 });
 
 
 module.exports = mongo.model('orders', schema);

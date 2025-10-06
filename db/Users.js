@@ -5,6 +5,12 @@ const crypto = require('crypto');
 const Company = require('./Company');
 
 const schema = new mongoose.Schema({
+    tenantId: { 
+        type: String, 
+        required: true, 
+        index: true,
+        default: 'legacy_tenant_001' // Default for existing data migration
+    },
     company: { type: mongoose.Schema.Types.ObjectId, ref: 'companies' },
     name: {
         type: String,
@@ -124,6 +130,12 @@ schema.methods.createPasswordResetToken = async function () {
 //     const companydetails = await Company.findById(this.company_id);
 //     return companydetails;
 // });
+
+// Compound indexes for multi-tenant performance
+schema.index({ tenantId: 1, email: 1 }, { unique: true });
+schema.index({ tenantId: 1, corporateID: 1 }, { unique: true });
+schema.index({ tenantId: 1, role: 1 });
+schema.index({ tenantId: 1, status: 1 });
 
 
 const User = mongoose.model('users', schema);

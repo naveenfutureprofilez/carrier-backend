@@ -1,0 +1,59 @@
+const express = require('express');
+const router = express.Router();
+const {
+  getTenantInfo,
+  updateTenantSettings,
+  getTenantUsage,
+  getTenantAnalytics,
+  getBillingInfo,
+  upgradePlan,
+  getTenantUsers,
+  inviteUser,
+  updateUserRole,
+  removeUser,
+  getIntegrations,
+  configureIntegration,
+  removeIntegration,
+  getOrdersReport,
+  getCustomersReport,
+  getCarriersReport,
+  getFinancialReport,
+  exportData
+} = require('../controllers/tenantAdminController');
+
+const { authenticateJWT } = require('../middleware/auth');
+const { resolveTenant } = require('../middleware/tenant');
+
+// Apply middleware to all tenant admin routes
+router.use(authenticateJWT);
+router.use(resolveTenant);
+
+// Tenant Information Routes
+router.get('/info', getTenantInfo);
+router.put('/settings', updateTenantSettings);
+router.get('/usage', getTenantUsage);
+router.get('/analytics', getTenantAnalytics);
+
+// Billing & Subscription Routes
+router.get('/billing', getBillingInfo);
+router.post('/billing/upgrade', upgradePlan);
+
+// User Management Routes
+router.get('/users', getTenantUsers);
+router.post('/users/invite', inviteUser);
+router.put('/users/:id/role', updateUserRole);
+router.delete('/users/:id', removeUser);
+
+// Integration Management Routes
+router.get('/integrations', getIntegrations);
+router.post('/integrations', configureIntegration);
+router.delete('/integrations/:id', removeIntegration);
+
+// Reports Routes
+router.get('/reports/orders', getOrdersReport);
+router.get('/reports/customers', getCustomersReport);
+router.get('/reports/carriers', getCarriersReport);
+router.get('/reports/financial', getFinancialReport);
+router.post('/export', exportData);
+
+module.exports = router;
