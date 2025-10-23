@@ -59,15 +59,15 @@ const getTenantInfo = catchAsync(async (req, res, next) => {
   });
 });
 
+
+
 /**
  * Update tenant settings
  */
 const updateTenantSettings = catchAsync(async (req, res, next) => {
-  // Only allow tenant admins to update settings
   if (!req.user.isTenantAdmin && req.user.role !== 3) {
     return next(new AppError('Only tenant administrators can update settings', 403));
   }
-
   const allowedUpdates = [
     'settings.customizations',
     'contactInfo.phone',
@@ -121,7 +121,6 @@ const getTenantUsage = catchAsync(async (req, res, next) => {
     maxCustomers: tenant.settings.maxCustomers || 999999,
     maxCarriers: tenant.settings.maxCarriers || 999999
   };
-
   const utilizationPercentage = {
     users: limits.maxUsers > 0 ? (currentUsage.users / limits.maxUsers) * 100 : 0,
     orders: limits.maxOrders > 0 ? (currentUsage.orders / limits.maxOrders) * 100 : 0,
@@ -181,8 +180,8 @@ const getTenantAnalytics = catchAsync(async (req, res, next) => {
     totalRevenue,
     newCustomers,
     newCarriers,
-    recentOrders,
-    ordersByStatus,
+    // recentOrders,
+    // ordersByStatus,
     revenueByMonth
   ] = await Promise.all([
     Order.countDocuments({ tenantId: req.tenantId, ...baseFilter }),
@@ -190,18 +189,24 @@ const getTenantAnalytics = catchAsync(async (req, res, next) => {
       { $match: { tenantId: req.tenantId, ...baseFilter } },
       { $group: { _id: null, total: { $sum: '$total_amount' } } }
     ]),
+
     Customer.countDocuments(baseFilter),
+
     Carrier.countDocuments(baseFilter),
-    Order.find({ tenantId: req.tenantId })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .populate('customer', 'name')
-      .populate('carrier', 'name')
-      .lean(),
-    Order.aggregate([
-      { $match: { tenantId: req.tenantId } },
-      { $group: { _id: '$order_status', count: { $sum: 1 } } }
-    ]),
+
+    // Order.find({ tenantId: req.tenantId })
+    //   .sort({ createdAt: -1 })
+    //   .limit(10)
+    //   .populate('customer', 'name')
+    //   .populate('carrier', 'name')
+    //   .lean(),
+
+    // Order.aggregate([
+    //   { $match: { tenantId: req.tenantId } },
+    //   { $group: { _id: '$order_status', count: { $sum: 1 } } }
+    // ]),
+
+
     Order.aggregate([
       { $match: { tenantId: req.tenantId, ...baseFilter } },
       {
@@ -231,17 +236,17 @@ const getTenantAnalytics = catchAsync(async (req, res, next) => {
         newCarriers
       },
       charts: {
-        ordersByStatus: ordersByStatus.map(item => ({
-          status: item._id,
-          count: item.count
-        })),
+        // ordersByStatus: ordersByStatus.map(item => ({
+        //   status: item._id,
+        //   count: item.count
+        // })),
         revenueByMonth: revenueByMonth.map(item => ({
           period: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
           revenue: item.revenue,
           orders: item.orders
         }))
       },
-      recentOrders
+      // recentOrders
     }
   });
 });
