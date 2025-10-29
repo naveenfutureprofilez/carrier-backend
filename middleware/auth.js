@@ -12,15 +12,16 @@ const SECRET_ACCESS = process.env.SECRET_ACCESS || 'MYSECRET';
  * Validates JWT token and attaches user to request
  */
 const authenticateJWT = catchAsync(async (req, res, next) => {
-  // First check for JWT in cookies (preferred for security)
-  let token = req.cookies?.jwt;
+  // Prefer Authorization header if present (fix emulation overriding stale cookies)
+  let token = null;
+  let authHeader = req.headers.Authorization || req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer')) {
+    token = authHeader.split(' ')[1];
+  }
   
-  // Fallback to Authorization header for backward compatibility
+  // Fallback to JWT cookie
   if (!token) {
-    let authHeader = req.headers.Authorization || req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer')) {
-      token = authHeader.split(' ')[1];
-    }
+    token = req.cookies?.jwt;
   }
   
   if (!token) {
@@ -150,13 +151,14 @@ const requireTenantAccess = catchAsync(async (req, res, next) => {
  * Attaches user to request if token is valid, but doesn't require authentication
  */
 const optionalAuth = catchAsync(async (req, res, next) => {
-  let token = req.cookies?.jwt;
+  let token = null;
+  let authHeader = req.headers.Authorization || req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer')) {
+    token = authHeader.split(' ')[1];
+  }
   
   if (!token) {
-    let authHeader = req.headers.Authorization || req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer')) {
-      token = authHeader.split(' ')[1];
-    }
+    token = req.cookies?.jwt;
   }
   
   if (!token) {

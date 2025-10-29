@@ -11,6 +11,11 @@ const errorHandler = require("./middlewares/errorHandler");
 const cookieParser = require('cookie-parser');
 app.use(cookieParser());
 
+// Stripe webhook removed
+
+// Resolve tenant/landing context for all requests
+const { tenantResolver } = require('./middleware/tenantResolver');
+app.use(tenantResolver);
 
 const connectDB = require('./db/config'); // Adjust path as needed
 connectDB();
@@ -35,6 +40,9 @@ app.use(morgan('dev'));
 app.use(errorHandler);
 app.use(globalErrorHandler);
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Stripe webhook removed
+
 app.use(bodyParser.json({limit:'2000mb'}));
 app.use("/user", require('./routes/authRoutes'));
 app.use("/user", require('./routes/userRoutes'));
@@ -44,6 +52,7 @@ app.use("", require('./routes/customerRoutes'));
 app.use("/api/migration", require('./routes/migrationRoutes'));
 app.use("/api/tenant-admin", require('./routes/tenantAdmin'));
 app.use("/api/super-admin", require('./routes/superAdmin'));
+// Landing routes removed
 app.use("/debug", require('./routes/debug'));
 app.use(express.json());
 const path = require('path');

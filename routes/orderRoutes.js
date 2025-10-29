@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { validateToken } = require('../controllers/authController');
+const { validateToken } = require('../controllers/multiTenantAuthController');
 const orderController = require('../controllers/orderController');
 const restrictOrderMiddleware = require('../middlewares/restrictOrderMiddleware');
 

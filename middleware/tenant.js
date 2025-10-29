@@ -41,7 +41,7 @@ const resolveTenant = catchAsync(async (req, res, next) => {
   // Verify tenant exists and is active
   const tenant = await Tenant.findOne({ 
     tenantId: tenantId,
-    status: { $in: ['active', 'trial'] }
+    status: { $in: ['active'] }
   });
   
   if (!tenant) {
@@ -49,7 +49,7 @@ const resolveTenant = catchAsync(async (req, res, next) => {
   }
   
   // Check subscription status
-  if (!tenant.subscription || !['active', 'trial'].includes(tenant.subscription.status)) {
+  if (!tenant.subscription || tenant.subscription.status !== 'active') {
     return next(new AppError('Tenant subscription is inactive', 403));
   }
   
@@ -92,7 +92,7 @@ const optionalTenant = catchAsync(async (req, res, next) => {
     try {
       const tenant = await Tenant.findOne({ 
         tenantId: tenantId,
-        status: { $in: ['active', 'trial'] }
+        status: { $in: ['active'] }
       });
       
       if (tenant) {

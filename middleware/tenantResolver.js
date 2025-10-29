@@ -80,7 +80,7 @@ const tenantResolver = catchAsync(async (req, res, next) => {
       // Find tenant by subdomain
       const tenant = await Tenant.findOne({ 
         subdomain: subdomain,
-        status: { $in: ['active', 'trial'] }
+        status: { $in: ['active'] }
       }).lean();
       
       if (!tenant) {
@@ -93,9 +93,32 @@ const tenantResolver = catchAsync(async (req, res, next) => {
         });
       }
       
+      // Check if tenant subscription is active and not expired
+      if (
+        !tenant.subscription ||
+        tenant.subscription.status !== 'active'
+      ) {
+        console.log(`❌ Inactive subscription for tenant: ${subdomain}`);
+        return res.status(403).json({
+          status: false,
+          error: 'subscription_inactive',
+          message: 'Company subscription is inactive'
+        });
+      }
+      
+      if (!tenant) {
+        console.log(`❌ Tenant not found for subdomain: ${subdomain}`);
+        return res.status(404).json({
+          status: false,
+          error: 'tenant_not_found',
+          message: 'Company not found or inactive',
+          subdomain: subdomain
+        });
+      }
+      
       // Check if tenant subscription is active
-      if (!tenant.subscription || !['active', 'trial'].includes(tenant.subscription.status)) {
-        console.log(`⚠️  Tenant subscription inactive: ${tenant.name}`);
+      if (!tenant.subscription || tenant.subscription.status !== 'active') {
+        console.log(`⚠️ Tenant subscription inactive: ${tenant.name}`);
         return res.status(403).json({
           status: false,
           error: 'subscription_inactive',

@@ -95,21 +95,35 @@ const getAllTenants = catchAsync(async (req, res, next) => {
   // Get usage stats and subscription plan details for each tenant
   const tenantsWithUsage = await Promise.all(
     tenants.map(async (tenant) => {
-      const [usage, subscriptionPlan] = await Promise.all([
+      const [usage, subscriptionPlan, financialAgg] = await Promise.all([
         Promise.all([
           User.countDocuments({ tenantId: tenant.tenantId }),
           Order.countDocuments({ tenantId: tenant.tenantId }),
           Customer.countDocuments({ tenantId: tenant.tenantId }),
           Carrier.countDocuments({ tenantId: tenant.tenantId })
         ]),
-        SubscriptionPlan.findOne({ slug: tenant.subscription.plan })
+        SubscriptionPlan.findOne({ slug: tenant.subscription.plan }),
+        Order.aggregate([
+          { $match: { tenantId: tenant.tenantId } },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: '$total_amount' },
+              lastOrderDate: { $max: '$createdAt' }
+            }
+          }
+        ])
       ]);
       
       const [users, orders, customers, carriers] = usage;
+      const revenue = (financialAgg[0]?.totalRevenue) || 0;
+      const lastActive = financialAgg[0]?.lastOrderDate || null;
       
       return {
         ...tenant.toObject(),
         usage: { users, orders, customers, carriers },
+        revenue,
+        lastActive,
         subscriptionPlan: subscriptionPlan || null
       };
     })
@@ -140,7 +154,7 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
     return next(new AppError('Tenant not found', 404));
   }
 
-  const [company, usage, subscriptionPlan] = await Promise.all([
+  const [company, usage, subscriptionPlan, financialAgg] = await Promise.all([
     Company.findOne({ tenantId }),
     Promise.all([
       User.countDocuments({ tenantId }),
@@ -148,10 +162,22 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
       Customer.countDocuments({ tenantId }),
       Carrier.countDocuments({ tenantId })
     ]),
-    SubscriptionPlan.findOne({ slug: tenant.subscription.plan })
+    SubscriptionPlan.findOne({ slug: tenant.subscription.plan }),
+    Order.aggregate([
+      { $match: { tenantId } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$total_amount' },
+          lastOrderDate: { $max: '$createdAt' }
+        }
+      }
+    ])
   ]);
 
   const [users, orders, customers, carriers] = usage;
+  const revenue = (financialAgg[0]?.totalRevenue) || 0;
+  const lastActive = financialAgg[0]?.lastOrderDate || null;
 
   res.json({
     status: true,
@@ -159,7 +185,9 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
       tenant,
       company,
       subscriptionPlan,
-      usage: { users, orders, customers, carriers }
+      usage: { users, orders, customers, carriers },
+      revenue,
+      lastActive
     }
   });
 });
@@ -235,7 +263,7 @@ const updateTenantPlan = catchAsync(async (req, res, next) => {
  * Get all subscription plans
  */
 const getSubscriptionPlans = catchAsync(async (req, res, next) => {
-  const plans = await SubscriptionPlan.find().sort({ price: 1 });
+  const plans = await SubscriptionPlan.find().sort({ name: 1 });
   
   res.json({
     status: true,
@@ -337,6 +365,11 @@ const createTenant = catchAsync(async (req, res, next) => {
     return next(new AppError('Subscription plan not found', 404));
   }
 
+  // Map plan slug to tenant schema enum (basic|standard|premium|enterprise)
+  const allowedPlans = ['basic', 'standard', 'premium', 'enterprise'];
+  const planSlug = plan?.slug || subscriptionPlan;
+  const tenantPlanKey = allowedPlans.find(p => planSlug.startsWith(p)) || 'basic';
+
   // Generate unique tenant ID
   const tenantId = `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
@@ -344,19 +377,25 @@ const createTenant = catchAsync(async (req, res, next) => {
   const tenant = await Tenant.create({
     tenantId,
     name,
+    domain: process.env.DOMAIN || 'localhost',
     subdomain,
     status: 'active',
+    contactInfo: {
+      adminName,
+      adminEmail,
+      phone: adminPhone || ''
+    },
     subscription: {
-      plan: subscriptionPlan,
+      plan: tenantPlanKey,
       status: 'active',
       startDate: new Date(),
       endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       billingCycle: 'monthly'
     },
     settings: {
-      maxUsers: plan.limits.maxUsers,
-      maxOrders: plan.limits.maxOrders,
-      features: plan.features
+      maxUsers: plan?.limits?.maxUsers ?? 10,
+      maxOrders: plan?.limits?.maxOrders ?? 500,
+      features: Array.isArray(plan?.features) ? plan.features : [],
     },
     billing: {
       balance: 0,
@@ -368,17 +407,15 @@ const createTenant = catchAsync(async (req, res, next) => {
   // Create company
   const company = await Company.create({
     tenantId,
-    name: companyInfo.name || name,
-    mc_code: companyInfo.mc_code || `MC${Date.now()}`,
-    dot_number: companyInfo.dot_number || `DOT${Date.now()}`,
-    address: companyInfo.address || 'N/A',
-    city: companyInfo.city || 'N/A',
-    state: companyInfo.state || 'N/A',
-    zip: companyInfo.zip || 'N/A',
-    phone: companyInfo.phone || adminPhone,
-    email: companyInfo.email || adminEmail,
-    website: companyInfo.website || `https://${subdomain}.spennypiggy.co`,
-    status: 'active'
+    name: (companyInfo && companyInfo.name) ? companyInfo.name : name,
+    mc_code: (companyInfo && companyInfo.mc_code) ? companyInfo.mc_code : `MC${Date.now()}`,
+    dot_number: (companyInfo && companyInfo.dot_number) ? companyInfo.dot_number : `DOT${Date.now()}`,
+    address: (companyInfo && companyInfo.address) ? companyInfo.address : 'N/A',
+    city: (companyInfo && companyInfo.city) ? companyInfo.city : 'N/A',
+    state: (companyInfo && companyInfo.state) ? companyInfo.state : 'N/A',
+    zip: (companyInfo && companyInfo.zip) ? companyInfo.zip : 'N/A',
+    email: adminEmail || 'N/A',
+    phone: adminPhone || 'N/A'
   });
 
   // Create admin user
@@ -393,7 +430,7 @@ const createTenant = catchAsync(async (req, res, next) => {
     password: hashedPassword,
     phone: adminPhone,
     country: 'USA',
-    address: companyInfo.address || 'N/A',
+    address: (companyInfo && companyInfo.address) ? companyInfo.address : 'N/A',
     role: 3, // Admin role
     position: 'Administrator',
     corporateID: `ADMIN_${Date.now()}`,
@@ -554,12 +591,41 @@ const exportSystemData = catchAsync(async (req, res, next) => {
   });
 });
 
+/**
+ * Update tenant settings (limits)
+ */
+const updateTenantSettings = catchAsync(async (req, res, next) => {
+  const { tenantId } = req.params;
+  const { maxUsers, maxOrders } = req.body;
+
+  const update = { updatedAt: new Date() };
+  if (maxUsers !== undefined) update['settings.maxUsers'] = Number(maxUsers);
+  if (maxOrders !== undefined) update['settings.maxOrders'] = Number(maxOrders);
+
+  const tenant = await Tenant.findOneAndUpdate(
+    { tenantId },
+    update,
+    { new: true, runValidators: true }
+  );
+
+  if (!tenant) {
+    return next(new AppError('Tenant not found', 404));
+  }
+
+  res.json({
+    status: true,
+    data: { tenant },
+    message: 'Tenant settings updated successfully'
+  });
+});
+
 module.exports = {
   getSystemOverview,
   getAllTenants,
   getTenantDetails,
   updateTenantStatus,
   updateTenantPlan,
+  updateTenantSettings,
   getSubscriptionPlans,
   createSubscriptionPlan,
   updateSubscriptionPlan,

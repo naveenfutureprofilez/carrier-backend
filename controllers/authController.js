@@ -788,7 +788,7 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
     
     const tenant = await Tenant.findOne({ 
       tenantId: actualTenantId, 
-      status: { $in: ['active', 'trial'] } 
+      status: { $in: ['active'] } 
     });
     
     console.log('🔍 Tenant lookup result:', tenant ? 'FOUND' : 'NOT FOUND');

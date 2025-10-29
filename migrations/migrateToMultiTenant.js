@@ -35,7 +35,7 @@ async function createDefaultSubscriptionPlans() {
       price: 29,
       currency: 'USD',
       billingCycle: 'monthly',
-      trialDays: 14,
+
       features: [
         'Order Management',
         'Customer Management',
@@ -47,9 +47,7 @@ async function createDefaultSubscriptionPlans() {
         maxUsers: 5,
         maxOrders: 500,
         maxCustomers: 100,
-        maxCarriers: 50,
-        storageLimit: '2GB',
-        apiCallsPerMonth: 5000
+        maxCarriers: 50
       }
     },
     {
@@ -59,7 +57,7 @@ async function createDefaultSubscriptionPlans() {
       price: 79,
       currency: 'USD',
       billingCycle: 'monthly',
-      trialDays: 14,
+
       features: [
         'Everything in Basic',
         'Advanced Reporting',
@@ -72,9 +70,7 @@ async function createDefaultSubscriptionPlans() {
         maxUsers: 20,
         maxOrders: 2000,
         maxCustomers: 500,
-        maxCarriers: 200,
-        storageLimit: '10GB',
-        apiCallsPerMonth: 20000
+        maxCarriers: 200
       },
       isPopular: true
     },
@@ -85,7 +81,7 @@ async function createDefaultSubscriptionPlans() {
       price: 199,
       currency: 'USD',
       billingCycle: 'monthly',
-      trialDays: 30,
+
       features: [
         'Everything in Professional',
         'Unlimited Users',
@@ -99,9 +95,7 @@ async function createDefaultSubscriptionPlans() {
         maxUsers: 999999, // Unlimited
         maxOrders: 999999, // Unlimited
         maxCustomers: 999999, // Unlimited
-        maxCarriers: 999999, // Unlimited
-        storageLimit: '100GB',
-        apiCallsPerMonth: 999999 // Unlimited
+        maxCarriers: 999999 // Unlimited
       }
     }
   ];

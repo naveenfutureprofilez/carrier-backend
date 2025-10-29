@@ -374,6 +374,14 @@ const inviteUser = catchAsync(async (req, res, next) => {
     return next(new AppError('User with this email already exists in your organization', 400));
   }
 
+  // Enforce max users limit
+  const tenant = await Tenant.findOne({ tenantId: req.tenantId }).select('settings.maxUsers');
+  const currentUsers = await User.countDocuments({ tenantId: req.tenantId });
+  const maxUsersLimit = tenant?.settings?.maxUsers ?? 10;
+  if (currentUsers >= maxUsersLimit) {
+    return next(new AppError(`User limit reached (${maxUsersLimit}). Upgrade plan to add more users.`, 403));
+  }
+
   // Generate temporary password
   const tempPassword = Math.random().toString(36).substring(2, 15);
   const hashedPassword = await bcrypt.hash(tempPassword, 12);

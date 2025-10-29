@@ -6,9 +6,9 @@ const {
   logout
 } = require('../controllers/multiTenantAuthController');
 const { 
-  requireTenant,
-  validateToken 
+  requireTenant
 } = require('../middleware/tenantResolver');
+const { validateToken } = require('../controllers/multiTenantAuthController');
 
 // Tenant data filtering middleware - automatically filters all queries by tenantId
 const tenantDataFilter = (req, res, next) => {

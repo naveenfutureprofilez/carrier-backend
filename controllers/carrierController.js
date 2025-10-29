@@ -4,7 +4,7 @@ const Carrier = require("../db/Carrier");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
 const axios = require("axios");
- 
+
 exports.addCarrier = catchAsync(async (req, res, next) => {
   const { name, phone, email, emails, location, country, state, city, zipcode, secondary_email, secondary_phone, mc_code } = req.body;
   const existingCarrier = await Carrier.findOne({mc_code});
@@ -61,7 +61,8 @@ exports.addCarrier = catchAsync(async (req, res, next) => {
     zipcode: zipcode,
     created_by:req.user._id,
     mc_code: mc_code,
-    company:req.user && req.user.company ? req.user.company._id : null
+    company:req.user && req.user.company ? req.user.company._id : null,
+    tenantId: req.tenantId,
   }).then(result => {
     res.send({
       status: true,
@@ -80,9 +81,12 @@ exports.carriers_listing = catchAsync(async (req, res) => {
     const queryObj = {
       $or: [{ deletedAt: null }]
     };
+    if (req.tenantId) {
+      queryObj.tenantId = req.tenantId;
+    }
 
     if (search && search.length >1) {
-      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
       const isNumber = !isNaN(search);
       if (isNumber) {
         queryObj.mc_code = { $regex: new RegExp(safeSearch, 'i') };
@@ -107,7 +111,9 @@ exports.carriers_listing = catchAsync(async (req, res) => {
 
 exports.deleteCarrier = catchAsync(async (req, res) => {
     try {
-      const carrier = await Carrier.findById(req.params.id);
+      const criteria = { _id: req.params.id };
+      if (req.tenantId) criteria.tenantId = req.tenantId;
+      const carrier = await Carrier.findOne(criteria);
       if (!carrier) {
         return res.status(404).json({
           status: false,
@@ -143,7 +149,7 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
   try { 
     const { mc_code, name, phone, email, emails, location, country, state, city, zipcode, secondary_email, secondary_phone } = req.body;
     if (mc_code) {
-      const existingCarrier = await Carrier.findOne({ mc_code: mc_code, _id: {$ne: req.params.id }});
+      const existingCarrier = await Carrier.findOne({ mc_code: mc_code, _id: {$ne: req.params.id }, ...(req.tenantId ? { tenantId: req.tenantId } : {}) });
       if (existingCarrier) {
         return res.status(200).send({
           status: false,
@@ -191,7 +197,9 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
       updateData.emails = emailsArray;
     }
 
-    const updatedUser = await Carrier.findByIdAndUpdate(req.params.id, updateData, {
+    const updateQuery = { _id: req.params.id };
+    if (req.tenantId) updateQuery.tenantId = req.tenantId;
+    const updatedUser = await Carrier.findOneAndUpdate(updateQuery, updateData, {
       new: true, 
       runValidators: true,
     });
@@ -217,7 +225,9 @@ exports.updateCarrier = catchAsync(async (req, res, next) => {
 });
 
 exports.carrierDetail = catchAsync(async (req, res, next) => {
-  const c = await Carrier.findById(req.params.id);
+  const criteria = { _id: req.params.id };
+  if (req.tenantId) criteria.tenantId = req.tenantId;
+  const c = await Carrier.findOne(criteria);
   if(!c){ 
     res.send({
       status: false,

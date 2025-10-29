@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { validateToken } = require('../controllers/authController');
+const { validateToken } = require('../controllers/multiTenantAuthController');
 const customerController = require('../controllers/customerController');
 
 router.route('/customer/listings').get(validateToken, customerController.customers_listing);

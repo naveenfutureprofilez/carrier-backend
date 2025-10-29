@@ -280,6 +280,21 @@ const validateToken = catchAsync(async (req, res, next) => {
 
       req.user = currentSuperAdmin;
       req.isSuperAdminUser = true;
+      // When emulating a tenant, scope requests to the emulated tenantId
+      if (decoded.isEmulating && decoded.tenantId) {
+        req.isEmulating = true;
+        req.tenantId = decoded.tenantId;
+      }
+      // Allow super admin to scope by tenant via query/header without generating a new token
+      const tParamRaw = (req.query && req.query.tenant) ? req.query.tenant : (req.headers['x-tenant-id'] || '');
+      const tParam = (tParamRaw || '').toString().trim().toLowerCase();
+      if (!decoded.isEmulating && tParam) {
+        const tenant = await Tenant.findOne({ $or: [{ tenantId: tParam }, { subdomain: tParam }] });
+        if (tenant) {
+          req.isEmulating = true;
+          req.tenantId = tenant.tenantId;
+        }
+      }
       return next();
     }
 
@@ -309,6 +324,10 @@ const validateToken = catchAsync(async (req, res, next) => {
     }
 
     req.user = currentUser;
+    // Ensure tenant context is available for downstream controllers
+    if (!req.tenantId && currentUser.tenantId) {
+      req.tenantId = currentUser.tenantId;
+    }
     next();
 
   } catch (error) {
@@ -353,6 +372,19 @@ const emulateTenant = catchAsync(async (req, res, next) => {
     originalUserId: req.user._id
   });
 
+  // Also set cookie to ensure new tab picks correct session
+  const cookieOptions = {
+    expires: new Date(
+      Date.now() + (process.env.JWT_COOKIE_EXPIRES_IN || 7) * 24 * 60 * 60 * 1000
+    ),
+    httpOnly: true,
+    sameSite: 'lax'
+  };
+  if (process.env.NODE_ENV === 'production') {
+    cookieOptions.secure = true;
+  }
+  res.cookie('jwt', emulationToken, cookieOptions);
+
   res.json({
     status: true,
     message: `Now emulating tenant: ${tenant.name}`,
@@ -376,6 +408,19 @@ const stopEmulation = catchAsync(async (req, res, next) => {
     role: 'super_admin',
     isSuperAdmin: true
   });
+
+  // Reset cookie to non-emulation token
+  const cookieOptions = {
+    expires: new Date(
+      Date.now() + (process.env.JWT_COOKIE_EXPIRES_IN || 7) * 24 * 60 * 60 * 1000
+    ),
+    httpOnly: true,
+    sameSite: 'lax'
+  };
+  if (process.env.NODE_ENV === 'production') {
+    cookieOptions.secure = true;
+  }
+  res.cookie('jwt', token, cookieOptions);
 
   res.json({
     status: true,

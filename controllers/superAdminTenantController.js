@@ -156,11 +156,11 @@ const createTenant = catchAsync(async (req, res, next) => {
     name,
     domain: process.env.DOMAIN || 'yourapp.com',
     subdomain,
-    status: 'pending',
+    status: 'active',
     contactInfo,
     subscription: {
       plan: subscription?.plan || 'basic',
-      status: 'trial',
+      status: 'active',
       startDate: new Date(),
       billingCycle: subscription?.billingCycle || 'monthly'
     },
@@ -498,9 +498,6 @@ const createSuperAdmin = catchAsync(async (req, res, next) => {
   });
 });
 
-/**
- * Update super admin
- */
 const updateSuperAdmin = catchAsync(async (req, res, next) => {
   const updates = req.body;
   delete updates.password; // Don't allow password updates through this endpoint
@@ -522,20 +519,15 @@ const updateSuperAdmin = catchAsync(async (req, res, next) => {
   });
 });
 
-/**
- * Delete super admin
- */
 const deleteSuperAdmin = catchAsync(async (req, res, next) => {
   const superAdmin = await SuperAdmin.findByIdAndUpdate(
     req.params.id,
     { status: 'inactive' },
     { new: true }
   );
-
   if (!superAdmin) {
     return next(new AppError('Super admin not found', 404));
   }
-
   res.json({
     status: true,
     message: 'Super admin deleted successfully'

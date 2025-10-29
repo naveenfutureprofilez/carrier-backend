@@ -70,6 +70,7 @@ exports.addCustomer = catchAsync(async (req, res, next) => {
    country: country,
    state: state,
    city: city,
+   tenantId: req.tenantId,
    company:req.user && req.user.company ? req.user.company._id : null,
    zipcode: zipcode,
    assigned_to:assigned_to,
@@ -92,6 +93,9 @@ exports.customers_listing = catchAsync(async (req, res) => {
   const queryObj = {
     $or: [{ deletedAt: null }]
   };
+  if (req.tenantId) {
+    queryObj.tenantId = req.tenantId;
+  }
 
   if (req.user && req.user.is_admin === 1 && req.user.role === 3) {
   }  else {
@@ -127,7 +131,9 @@ exports.customers_listing = catchAsync(async (req, res) => {
 });
 
 exports.customerDetails = catchAsync(async (req, res, next) => {
-  const customer = await Customer.findById(req.params.id).populate('assigned_to');
+  const criteria = { _id: req.params.id };
+  if (req.tenantId) criteria.tenantId = req.tenantId;
+  const customer = await Customer.findOne(criteria).populate('assigned_to');
   if(!customer){ 
     res.send({
       status: false,
@@ -146,7 +152,7 @@ exports.updateCustomer = catchAsync(async (req, res, next) => {
   const { name, secondary_email, secondary_phone, mc_code, phone, email, emails, address, country, state, city, zipcode, assigned_to } = req.body;
   
   if (mc_code) {
-    const existingCustomer = await Customer.findOne({ mc_code: mc_code, _id: { $ne: req.params.id } });
+    const existingCustomer = await Customer.findOne({ mc_code: mc_code, _id: { $ne: req.params.id }, ...(req.tenantId ? { tenantId: req.tenantId } : {}) });
     if (existingCustomer) {
       return res.status(200).send({
         status: false,
@@ -176,7 +182,9 @@ exports.updateCustomer = catchAsync(async (req, res, next) => {
   }
 
   await Customer.syncIndexes();
-  const updatedUser = await Customer.findByIdAndUpdate(req.params.id, {
+  const updateQuery = { _id: req.params.id };
+  if (req.tenantId) updateQuery.tenantId = req.tenantId;
+  const updatedUser = await Customer.findOneAndUpdate(updateQuery, {
     name: name,
     email: email,
     secondary_email: secondary_email,
@@ -212,7 +220,9 @@ exports.updateCustomer = catchAsync(async (req, res, next) => {
 
 exports.deleteCustomer = catchAsync(async (req, res) => {
     try {
-      const customer = await Customer.findById(req.params.id);
+      const criteria = { _id: req.params.id };
+      if (req.tenantId) criteria.tenantId = req.tenantId;
+      const customer = await Customer.findOne(criteria);
       if (!customer) {
         return res.status(404).json({
           status: false,

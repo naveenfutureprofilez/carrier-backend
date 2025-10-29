@@ -34,7 +34,6 @@ router.patch('/tenants/:id', validateToken, superAdminTenantController.updateTen
 router.delete('/tenants/:id', validateToken, superAdminTenantController.deleteTenant);
 router.patch('/tenants/:id/status', validateToken, superAdminTenantController.updateTenantStatus);
 router.post('/tenants/:id/invite-admin', validateToken, superAdminTenantController.inviteTenantAdmin);
-
 // Subscription plan management
 router.get('/subscription-plans', validateToken, superAdminTenantController.getSubscriptionPlans);
 router.post('/subscription-plans', validateToken, superAdminTenantController.createSubscriptionPlan);

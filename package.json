@@ -8,7 +8,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "live": "nodemon live.js",
-    "stripe": "nodemon stripetest.js"
+    "stripe": "nodemon stripetest.js",
+    "fix-plan-index": "node scripts/fix-plan-index.js"
   },
   "author": "",
   "license": "ISC",

@@ -138,6 +138,7 @@ exports.create_order = catchAsync(async (req, res, next) => {
          revenue_currency,
          totalDistance,
          order_status,
+         tenantId: req.tenantId,
          company:req.user && req.user.company ? req.user.company._id : null,
 
          created_by : req.user._id,
@@ -198,6 +199,11 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       ]
    };
 
+   // Scope by tenant when available (including emulation)
+   if (req.tenantId) {
+      queryObj.tenantId = req.tenantId;
+   }
+
    if(paymentStatus){
       queryObj.carrier_payment_status = paymentStatus;
       queryObj.customer_payment_status = paymentStatus;
@@ -244,13 +250,6 @@ exports.order_listing = catchAsync(async (req, res, next) => {
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   // if(sortby !== 'date'){
-   //    const statusPriority = { added: 0, intransit: 1, completed: 2 };
-   //    data.sort((a, b) => {
-   //       return statusPriority[a.order_status] - statusPriority[b.order_status];
-   //    });
-   // }
-
    res.json({
       status: true,
       orders: data,
@@ -266,6 +265,9 @@ exports.order_listing_account = catchAsync(async (req, res) => {
       const queryObj = {
          $or: [{ deletedAt: null }]
       };
+      if (req.tenantId) {
+         queryObj.tenantId = req.tenantId;
+      }
       if (search && search.length >1) {
          const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex
          queryObj.customer_order_no = { $regex: new RegExp(safeSearch, 'i') };
@@ -283,11 +285,6 @@ exports.order_listing_account = catchAsync(async (req, res) => {
 
       const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
       let data = await query;
-
-      // const statusPriority = { added: 0, intransit: 1, completed: 2 };
-      // data.sort((a, b) => {
-      //    return statusPriority[a.order_status] - statusPriority[b.order_status];
-      // });
 
       res.json({
          status: true,
@@ -448,6 +445,11 @@ exports.overview = catchAsync(async (req, res) => {
       // For admin users, only apply deleted filter
       queryFilter = baseDeletedFilter;
    }
+
+   // Scope dashboard counts by tenant when available
+   if (req.tenantId) {
+      queryFilter.tenantId = req.tenantId;
+   }
    
    // Count documents with proper filter
    totalLoads = await Order.countDocuments(queryFilter);
@@ -482,10 +484,18 @@ exports.overview = catchAsync(async (req, res) => {
 
 exports.order_detail = catchAsync(async (req, res) => {
    const id = req.params.id;
-   const order = await Order.findOne({
-      _id : id,
-      deletedAt : null || ''
-    }).populate(['created_by', 'customer', 'carrier']);
+   const criteria = {
+      _id: id,
+      $or: [
+         { deletedAt: null },
+         { deletedAt: '' },
+         { deletedAt: { $exists: false } }
+      ]
+   };
+   if (req.tenantId) {
+      criteria.tenantId = req.tenantId;
+   }
+   const order = await Order.findOne(criteria).populate(['created_by', 'customer', 'carrier']);
    
     if(!order){ 
       res.json({
@@ -725,6 +735,10 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
       $or: [{ deletedAt: null }]
    };
 
+   if (req.tenantId) {
+      queryObj.tenantId = req.tenantId;
+   }
+
    if(customer_id){
       queryObj.customer = customer_id;
    }
@@ -745,13 +759,6 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   // Removed client-side sorting to preserve descending serial number order
-   // if(sortby !== 'date'){
-   //    const statusPriority = { added: 0, intransit: 1, completed: 2 };
-   //    data.sort((a, b) => {
-   //       return statusPriority[a.order_status] - statusPriority[b.order_status];
-   //    });
-   // }
    res.json({
       status: true,
       orders: data,
@@ -766,6 +773,9 @@ exports.all_payments_status = catchAsync(async (req, res, next) => {
    const queryObj = {
       $or: [{ deletedAt: null }]
    };
+   if (req.tenantId) {
+      queryObj.tenantId = req.tenantId;
+   }
    if(type == 'carrier'){
       if(status == 'pending'){
          queryObj.carrier_payment_status = { $ne: 'paid' };
@@ -794,12 +804,6 @@ exports.all_payments_status = catchAsync(async (req, res, next) => {
    const { query, page, limit, totalPages } = await Query.paginate();
    let data = await query;
 
-   // if(sortby !== 'date'){
-   //    const statusPriority = { added: 0, intransit: 1, completed: 2 };
-   //    data.sort((a, b) => {
-   //       return statusPriority[a.order_status] - statusPriority[b.order_status];
-   //    });
-   // }
    res.json({
       status: true,
       lists: data,

@@ -17,7 +17,6 @@ const tenantSchema = new mongoose.Schema({
   domain: {
     type: String,
     required: [true, 'Domain is required'],
-    unique: true,
     trim: true,
     lowercase: true
   },
@@ -38,7 +37,7 @@ const tenantSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['active', 'suspended', 'pending', 'cancelled'],
-    default: 'pending',
+    default: 'active',
     index: true
   },
   subscription: {
@@ -49,8 +48,8 @@ const tenantSchema = new mongoose.Schema({
     },
     status: {
       type: String,
-      enum: ['active', 'cancelled', 'past_due', 'trial'],
-      default: 'trial'
+      enum: ['active', 'cancelled', 'past_due'],
+      default: 'active'
     },
     startDate: {
       type: Date,
@@ -59,7 +58,7 @@ const tenantSchema = new mongoose.Schema({
     endDate: Date,
     billingCycle: {
       type: String,
-      enum: ['monthly', 'yearly'],
+      enum: ['monthly', 'quarterly', 'yearly'],
       default: 'monthly'
     },
     stripeCustomerId: String,
@@ -181,6 +180,8 @@ tenantSchema.index({ subdomain: 1 });
 tenantSchema.index({ status: 1 });
 tenantSchema.index({ 'subscription.status': 1 });
 tenantSchema.index({ createdAt: -1 });
+// Ensure unique combination of domain + subdomain (full domain uniqueness)
+tenantSchema.index({ domain: 1, subdomain: 1 }, { unique: true });
 
 // Virtual for full domain
 tenantSchema.virtual('fullDomain').get(function() {
@@ -189,7 +190,7 @@ tenantSchema.virtual('fullDomain').get(function() {
 
 // Virtual for subscription active status
 tenantSchema.virtual('isSubscriptionActive').get(function() {
-  return ['active', 'trial'].includes(this.subscription.status);
+  return this.subscription.status === 'active';
 });
 
 // Pre-save middleware to update updatedAt

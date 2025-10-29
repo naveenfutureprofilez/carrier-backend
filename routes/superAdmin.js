@@ -6,6 +6,7 @@ const {
   getTenantDetails,
   updateTenantStatus,
   updateTenantPlan,
+  updateTenantSettings,
   getSubscriptionPlans,
   createSubscriptionPlan,
   updateSubscriptionPlan,
@@ -15,6 +16,9 @@ const {
   getTenantActivityLogs,
   exportSystemData
 } = require('../controllers/superAdminController');
+
+// Also import invite tenant admin from extended controller
+const { inviteTenantAdmin } = require('../controllers/superAdminTenantController');
 
 // Import emulation functions
 const { 
@@ -68,7 +72,10 @@ router.post('/tenants', createTenant);
 router.get('/tenants/:tenantId', getTenantDetails);
 router.put('/tenants/:tenantId/status', updateTenantStatus);
 router.put('/tenants/:tenantId/plan', updateTenantPlan);
+router.put('/tenants/:tenantId/settings', updateTenantSettings);
 router.get('/tenants/:tenantId/logs', getTenantActivityLogs);
+// Invite tenant admin and approve
+router.post('/tenants/:id/invite-admin', inviteTenantAdmin);
 
 // Subscription Plan Management
 router.get('/subscription-plans', getSubscriptionPlans);
