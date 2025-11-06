@@ -16,6 +16,9 @@ const schema = new mongoose.Schema({
       default: Date.now()     
    },
 });
+
+// Compound unique index for tenant-name combination
+schema.index({ tenantId: 1, name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
 const Commudity = mongoose.model('commudity', schema);
 module.exports = Commudity;
 

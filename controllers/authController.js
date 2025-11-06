@@ -198,11 +198,14 @@ const signup = catchAsync(async (req, res, next) => {
 });
  
 const login = catchAsync ( async (req, res, next) => { 
-   const { email, password, corporateID } = req.body;
+   const { email, password, tenantId } = req.body;
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
-    const user = await User.findOne({ email }).select('+password').lean();
+   if(!tenantId){
+      return next(new AppError("Tenant ID is required !!", 401))
+   }
+    const user = await User.findOne({ email, tenantId }).select('+password').lean();
     
     if (!user) {
         return res.status(200).json({ status: false, message: "Invalid Details" });
@@ -214,7 +217,7 @@ const login = catchAsync ( async (req, res, next) => {
     const pp= await bcrypt.compare(password, user.password)
     console.log("await bcrypt.compare(password", pp);
 
-   if((user.corporateID !== corporateID) || !user || !(await bcrypt.compare(password, user.password))){
+   if(!user || !(await bcrypt.compare(password, user.password))){
     res.status(200).json({
       status : false, 
       message:"Details are invalid.",
@@ -244,39 +247,110 @@ const login = catchAsync ( async (req, res, next) => {
 });
 
 const profile = catchAsync ( async (req, res) => {
-  const company = await Company.findOne({});
-  if(req.user){
-     res.status(200).json({
-      status:true,
-      user : req.user,
-      company : company,
-    });
-  } else {
-    res.status(200).json({
-     status:false,
-     message:"Unauthorized",
+  if (!req.user) {
+    return res.status(200).json({
+      status: false,
+      message: "Unauthorized",
     });
   }
+
+  const isSuperAdmin = req.isSuperAdminUser || req.superAdmin;
+  const isEmulating = req.isEmulating && req.tenantId;
+  
+  let userProfile = {
+    _id: req.user._id,
+    id: req.user._id,
+    name: req.user.name,
+    email: req.user.email,
+    status: req.user.status || 'active',
+    role: req.user.role,
+    corporateID: req.user.corporateID,
+    is_admin: req.user.is_admin,
+    position: req.user.position,
+    phone: req.user.phone,
+    country: req.user.country,
+    address: req.user.address,
+    avatar: req.user.avatar,
+    createdAt: req.user.createdAt
+  };
+
+  // Handle superadmin emulation
+  if (isSuperAdmin && isEmulating) {
+    // Show superadmin's actual details with emulation context
+    userProfile.name = `${req.user.name} (Emulating)`;
+    userProfile.userType = 'super_admin_emulating';
+    userProfile.status = 'active'; // Superadmin is always active during emulation
+    userProfile.isEmulating = true;
+    userProfile.emulatedTenantId = req.tenantId;
+    
+    // Add tenant context if available
+    if (req.tenant) {
+      userProfile.emulatingTenant = {
+        tenantId: req.tenant.tenantId,
+        name: req.tenant.name
+      };
+    }
+  } else if (isSuperAdmin) {
+    userProfile.userType = 'super_admin';
+  } else {
+    userProfile.userType = 'tenant_user';
+    userProfile.tenantId = req.user.tenantId;
+  }
+
+  // Find company for the current tenant context
+  const filter = {};
+  if (req.tenantId) {
+    filter.tenantId = req.tenantId;
+  } else if (req.user.tenantId) {
+    filter.tenantId = req.user.tenantId;
+  }
+  
+  const company = await Company.findOne(filter);
+  
+  res.status(200).json({
+    status: true,
+    user: userProfile,
+    company: company,
+  });
 });
 
 const employeesLisiting = catchAsync ( async (req, res) => {
-  let lists;
-  if(req.user && req.user.isSuper === '1'){
-     lists = await User.find({isSuper: {$ne:1}});
-  } else {
-     lists = await User.find({is_admin: {$ne:1}});
-  }
-  if(lists){
-     res.status(200).json({
-      status:true,
-      lists : lists,
-    });
-  } else {
-    res.status(200).json({
-     status:false,
-     message: []
+  // Get tenant ID from request context (prefer req.tenantId from tenant resolver)
+  const tenantId = req.tenantId || req.user?.tenantId;
+  
+  if (!tenantId) {
+    return res.status(400).json({
+      status: false,
+      message: "Tenant context is required",
+      lists: [],
+      totalDocuments: 0
     });
   }
+  
+  // Use raw collection query to bypass middleware and include ALL users (active + inactive)
+  const mongoose = require('mongoose');
+  const db = mongoose.connection.db;
+  const usersCollection = db.collection('users');
+  
+  const rawUsers = await usersCollection.find({ tenantId }).toArray();
+  const totalDocuments = rawUsers.length;
+  
+  // Convert raw documents to match expected format
+  const lists = rawUsers.map(user => ({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    status: user.status,
+    role: user.role,
+    tenantId: user.tenantId,
+    createdAt: user.createdAt
+  }));
+  
+  res.status(200).json({
+    status: true,
+    lists: lists,
+    totalDocuments: totalDocuments
+  });
 });
 
 const employeeDetail = catchAsync ( async (req, res) => {
@@ -521,7 +595,12 @@ const resetpassword = catchAsync ( async (req, res, next) => {
 const addCompanyInfo = catchAsync ( async (req, res, next) => {
   const {name, email, phone, address, companyID, bank_name, account_name, account_number, routing_number, remittance_primary_email, remittance_secondary_email, rate_confirmation_terms} = req.body;
   if(companyID){
-    const existing = await Company.findOne({_id : companyID});
+    // Find company by ID and ensure it belongs to the current tenant
+    const filter = { _id: companyID };
+    if (req.tenantId) {
+      filter.tenantId = req.tenantId;
+    }
+    const existing = await Company.findOne(filter);
     if(existing){
       existing.name = name !== '' && name !== undefined ? name : existing.name;
       existing.email = email !== '' && email !== undefined ? email : existing.email;
@@ -555,6 +634,7 @@ const addCompanyInfo = catchAsync ( async (req, res, next) => {
     remittance_primary_email: remittance_primary_email,
     remittance_secondary_email: remittance_secondary_email,
     rate_confirmation_terms: rate_confirmation_terms,
+    tenantId: req.tenantId || 'default-tenant',
   }).then(result => {
     res.send({
       status: true,
@@ -692,15 +772,18 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
   }
   
   try {
-    // Handle super admin login
-    if (isSuperAdmin) {
-      const superAdmin = await SuperAdmin.findOne({ email }).select('+password');
+    // First, try to find super admin by email
+    const superAdmin = await SuperAdmin.findOne({ email }).select('+password');
+    
+    if (superAdmin) {
+      console.log('🔍 Found super admin with email:', email);
       
-      if (!superAdmin || !(await bcrypt.compare(password, superAdmin.password))) {
-        console.log('❌ Super admin credentials invalid');
+      const isPasswordValid = await superAdmin.checkPassword(password, superAdmin.password);
+      if (!isPasswordValid) {
+        console.log('❌ Super admin password invalid');
         return res.status(200).json({
           status: false,
-          message: "Invalid super admin credentials"
+          message: "Invalid credentials"
         });
       }
       
@@ -708,7 +791,7 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
         console.log('❌ Super admin account inactive');
         return res.status(200).json({
           status: false,
-          message: "Super admin account is inactive"
+          message: "Account is inactive"
         });
       }
       
@@ -732,22 +815,41 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
       
       return res.status(200).json({
         status: true,
-        message: "Super admin login successful!",
+        message: "Login successful!",
         user,
         isSuperAdmin: true,
-        token
+        token,
+        redirectTo: "/super-admin"
       });
     }
     
-    if (!tenantId) {
-      console.log('❌ Missing tenantId for regular login');
-      return res.status(200).json({
-        status: false,
-        message: "Tenant ID is required for regular login"
-      });
+    // If not super admin, try to find tenant user
+    console.log('🔍 Not super admin, searching for tenant user with email:', email);
+    
+    // If tenantId is provided (backward compatibility), use it
+    if (tenantId) {
+      console.log('🔍 Using provided tenantId:', tenantId);
+    } else {
+      // Auto-detect tenant from user email - find any user with this email
+      console.log('🔍 Auto-detecting tenant from user email...');
+      const userWithEmail = await User.findOne({ email }).select('+password').populate('company');
+      
+      if (!userWithEmail) {
+        console.log('❌ No user found with email:', email);
+        return res.status(200).json({
+          status: false,
+          message: "Invalid credentials"
+        });
+      }
+      
+      console.log('✅ Found tenant user, using tenantId:', userWithEmail.tenantId);
+      // Use the user's tenantId for tenant validation
+      req.body.tenantId = userWithEmail.tenantId;
     }
     
-    console.log('🔍 Looking up tenant with tenantId:', tenantId);
+    const finalTenantId = tenantId || req.body.tenantId;
+    
+    console.log('🔍 Looking up tenant with tenantId:', finalTenantId);
     
     // First, let's see what tenants exist in the database
     const allTenants = await Tenant.find({});
@@ -757,13 +859,13 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
     });
     
     // Check if we can find the tenant without status filter first
-    let tenantAny = await Tenant.findOne({ tenantId });
+    let tenantAny = await Tenant.findOne({ tenantId: finalTenantId });
     console.log('🔎 Tenant lookup by tenantId without status filter:', tenantAny ? 'FOUND' : 'NOT FOUND');
     
     // If not found by tenantId, try by subdomain (for backward compatibility)
     if (!tenantAny) {
       console.log('🔎 Tenant not found by tenantId, trying subdomain lookup...');
-      tenantAny = await Tenant.findOne({ subdomain: tenantId });
+      tenantAny = await Tenant.findOne({ subdomain: finalTenantId });
       console.log('🔎 Tenant lookup by subdomain:', tenantAny ? 'FOUND' : 'NOT FOUND');
       
       if (tenantAny) {
@@ -910,7 +1012,8 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
         name: tenant.name,
         subdomain: tenant.subdomain
       },
-      token
+      token,
+      redirectTo: "/home"
     });
     
   } catch (error) {

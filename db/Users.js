@@ -111,7 +111,9 @@ schema.pre('save', async function (next) {
 });
 
 schema.pre(/^find/, function (next) {
-    this.find({ active: { $ne: false } });
+    const opts = (this.getOptions && this.getOptions()) || this.options || {};
+    if (opts.includeInactive === true) return next();
+    this.where({ status: 'active', $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] });
     next();
 });
 
@@ -131,11 +133,22 @@ schema.methods.createPasswordResetToken = async function () {
 //     return companydetails;
 // });
 
+// Static method for consistent active user filtering
+schema.statics.activeFilter = function(tenantId, extra = {}) {
+    return {
+        tenantId,
+        status: 'active',
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+        ...extra
+    };
+};
+
 // Compound indexes for multi-tenant performance
 schema.index({ tenantId: 1, email: 1 }, { unique: true });
 schema.index({ tenantId: 1, corporateID: 1 }, { unique: true });
 schema.index({ tenantId: 1, role: 1 });
 schema.index({ tenantId: 1, status: 1 });
+schema.index({ tenantId: 1, status: 1, deletedAt: 1 });
 
 
 const User = mongoose.model('users', schema);

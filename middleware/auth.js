@@ -12,19 +12,32 @@ const SECRET_ACCESS = process.env.SECRET_ACCESS || 'MYSECRET';
  * Validates JWT token and attaches user to request
  */
 const authenticateJWT = catchAsync(async (req, res, next) => {
+  console.log('🔐 authenticateJWT called for:', req.method, req.url);
+  console.log('📝 Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('🍪 Cookies:', req.cookies);
+  
   // Prefer Authorization header if present (fix emulation overriding stale cookies)
   let token = null;
   let authHeader = req.headers.Authorization || req.headers.authorization;
+  console.log('🔍 Auth header:', authHeader);
+  
   if (authHeader && authHeader.startsWith('Bearer')) {
     token = authHeader.split(' ')[1];
+    console.log('✅ Token from Authorization header');
   }
   
   // Fallback to JWT cookie
   if (!token) {
     token = req.cookies?.jwt;
+    if (token) {
+      console.log('✅ Token from JWT cookie');
+    }
   }
   
+  console.log('🎩 Final token:', token ? 'EXISTS' : 'NULL');
+  
   if (!token) {
+    console.log('❌ No token found, returning 401');
     return next(new AppError('Authentication required. Please log in.', 401));
   }
   
@@ -32,7 +45,33 @@ const authenticateJWT = catchAsync(async (req, res, next) => {
     // Verify the token
     const decoded = await promisify(jwt.verify)(token, SECRET_ACCESS);
     
-    // Check if user still exists
+    // Handle emulation tokens differently
+    if (decoded.isEmulating || decoded.isSuperAdmin) {
+      console.log('🔄 Handling emulation/super admin token');
+      
+      // Get the actual user record for the super admin
+      const actualUser = await User.findById(decoded.id);
+      if (!actualUser) {
+        return next(new AppError('Super admin user record not found', 401));
+      }
+      
+      req.user = actualUser;
+      req.isSuperAdminUser = true;
+      
+      // Set emulation context if token is for emulation
+      if (decoded.isEmulating) {
+        req.isEmulating = true;
+        req.tenantId = decoded.emulatedTenantId;
+        console.log('✅ Emulation context set:', {
+          isEmulating: req.isEmulating,
+          tenantId: req.tenantId
+        });
+      }
+      
+      return next();
+    }
+    
+    // Regular token - check if user still exists
     const currentUser = await User.findById(decoded.id).populate('company');
     if (!currentUser) {
       return next(new AppError('The user belonging to this token no longer exists.', 401));
@@ -64,11 +103,46 @@ const authenticateJWT = catchAsync(async (req, res, next) => {
 
 /**
  * Super Admin Authorization middleware
- * Requires user to be a super admin
+ * Requires user to be a super admin or an emulating user
  */
 const requireSuperAdmin = catchAsync(async (req, res, next) => {
+  console.log('🔐 requireSuperAdmin middleware called');
+  console.log('🔍 req.user exists:', !!req.user);
+  
   if (!req.user) {
+    console.log('❌ No user in request');
     return next(new AppError('Authentication required', 401));
+  }
+  
+  // Check for emulation token - decode the JWT directly to check flags
+  let token = null;
+  let authHeader = req.headers.Authorization || req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer')) {
+    token = authHeader.split(' ')[1];
+  }
+  if (!token) {
+    token = req.cookies?.jwt;
+  }
+  
+  if (token) {
+    console.log('🎩 Found token, decoding...');
+    try {
+      const decoded = jwt.decode(token);
+      console.log('🔍 Decoded token:', JSON.stringify(decoded, null, 2));
+      // If token indicates super admin privileges or emulation, allow access
+      if (decoded.isSuperAdmin || decoded.isEmulating || decoded.originalUserId) {
+        console.log('✅ Token has super admin/emulation privileges');
+        req.isSuperAdminUser = true;
+        return next();
+      } else {
+        console.log('⚠️ Token does not have required privileges');
+      }
+    } catch (error) {
+      console.log('❌ Token decode error:', error.message);
+      // Continue with regular super admin check
+    }
+  } else {
+    console.log('❌ No token found');
   }
   
   // Check if user is a super admin
@@ -78,6 +152,7 @@ const requireSuperAdmin = catchAsync(async (req, res, next) => {
   }
   
   req.superAdmin = superAdmin;
+  req.isSuperAdminUser = true;
   next();
 });
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getTenantInfo,
+  getSubscriptionDetails,
   updateTenantSettings,
   getTenantUsage,
   getTenantAnalytics,
@@ -21,15 +22,16 @@ const {
   exportData
 } = require('../controllers/tenantAdminController');
 
-const { authenticateJWT } = require('../middleware/auth');
+const { validateToken } = require('../controllers/multiTenantAuthController');
 const { resolveTenant } = require('../middleware/tenant');
 
-// Apply middleware to all tenant admin routes
-router.use(authenticateJWT);
+// Apply middleware to all tenant admin routes (emulation-aware)
+router.use(validateToken);
 router.use(resolveTenant);
 
 // Tenant Information Routes
 router.get('/info', getTenantInfo);
+router.get('/subscription', getSubscriptionDetails);
 router.put('/settings', updateTenantSettings);
 router.get('/usage', getTenantUsage);
 router.get('/analytics', getTenantAnalytics);

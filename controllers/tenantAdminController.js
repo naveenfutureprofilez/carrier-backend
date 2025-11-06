@@ -8,6 +8,116 @@ const Customer = require('../db/Customer');
 const Carrier = require('../db/Carrier');
 const SubscriptionPlan = require('../db/SubscriptionPlan');
 const bcrypt = require('bcrypt');
+const { getTenantUsageSummary } = require('../middlewares/planLimitsMiddleware');
+
+/**
+ * Get tenant information
+ */
+/**
+ * Get tenant subscription details only
+ */
+const getSubscriptionDetails = catchAsync(async (req, res, next) => {
+  console.log('🔍 getSubscriptionDetails called for tenantId:', req.tenantId);
+  const tenant = await Tenant.findOne({ tenantId: req.tenantId });
+  
+  if (!tenant) {
+    console.log('❌ Tenant not found for tenantId:', req.tenantId);
+    return next(new AppError('Tenant not found', 404));
+  }
+  
+  console.log('✅ Found tenant:', tenant.name, 'subscription:', tenant.subscription);
+
+  // Get subscription plan details - handle both old and new formats
+  let subscriptionPlan = null;
+  
+  if (tenant.subscription.plan) {
+    if (typeof tenant.subscription.plan === 'string') {
+      subscriptionPlan = await SubscriptionPlan.findOne({
+        $or: [
+          { slug: tenant.subscription.plan },
+          { name: { $regex: tenant.subscription.plan, $options: 'i' } }
+        ]
+      });
+    } else {
+      subscriptionPlan = await SubscriptionPlan.findById(tenant.subscription.plan);
+    }
+  } else if (tenant.subscription.planSlug) {
+    subscriptionPlan = await SubscriptionPlan.findOne({ slug: tenant.subscription.planSlug });
+  } else if (tenant.subscription.legacyPlan) {
+    subscriptionPlan = await SubscriptionPlan.findOne({
+      $or: [
+        { slug: tenant.subscription.legacyPlan },
+        { name: { $regex: tenant.subscription.legacyPlan, $options: 'i' } }
+      ]
+    });
+  }
+
+  // Get current usage for limit calculations
+  const usage = {
+    users: await User.countDocuments(User.activeFilter(req.tenantId)),
+    orders: await Order.countDocuments({ tenantId: req.tenantId }),
+    customers: await Customer.countDocuments({ tenantId: req.tenantId }),
+    carriers: await Carrier.countDocuments({ tenantId: req.tenantId })
+  };
+
+  // Determine plan limits and features from subscription plan or defaults
+  const planLimits = subscriptionPlan?.limits || tenant.subscription.planLimits || {
+    maxUsers: tenant.settings?.maxUsers || 10,
+    maxOrders: tenant.settings?.maxOrders || 1000,
+    maxCustomers: tenant.settings?.maxCustomers || 1000,
+    maxCarriers: tenant.settings?.maxCarriers || 500
+  };
+  
+  const planFeatures = subscriptionPlan?.features || tenant.subscription.planFeatures || 
+    tenant.settings?.features || ['orders', 'customers', 'carriers', 'basic_reporting'];
+
+  const subscriptionInfo = {
+    status: tenant.subscription.status || 'active',
+    startDate: tenant.subscription.startDate,
+    endDate: tenant.subscription.endDate,
+    billingCycle: tenant.subscription.billingCycle || 'monthly',
+    planName: subscriptionPlan?.name || tenant.subscription.legacyPlan || 
+               (typeof tenant.subscription.plan === 'string' ? tenant.subscription.plan : 'Basic'),
+    planSlug: subscriptionPlan?.slug || tenant.subscription.planSlug,
+    planDescription: subscriptionPlan?.description || 'Standard logistics management features',
+    planLimits,
+    planFeatures,
+    isActive: tenant.subscription.status === 'active',
+    daysUntilRenewal: tenant.subscription.endDate ? 
+      Math.ceil((new Date(tenant.subscription.endDate) - new Date()) / (1000 * 60 * 60 * 24)) : null,
+    usage: {
+      users: {
+        current: usage.users,
+        limit: planLimits.maxUsers,
+        percentage: Math.round((usage.users / planLimits.maxUsers) * 100)
+      },
+      orders: {
+        current: usage.orders,
+        limit: planLimits.maxOrders,
+        percentage: Math.round((usage.orders / planLimits.maxOrders) * 100)
+      },
+      customers: {
+        current: usage.customers,
+        limit: planLimits.maxCustomers,
+        percentage: Math.round((usage.customers / planLimits.maxCustomers) * 100)
+      },
+      carriers: {
+        current: usage.carriers,
+        limit: planLimits.maxCarriers,
+        percentage: Math.round((usage.carriers / planLimits.maxCarriers) * 100)
+      }
+    }
+  };
+
+  console.log('📊 Returning subscription info:', JSON.stringify(subscriptionInfo, null, 2));
+  
+  res.json({
+    status: true,
+    data: {
+      subscription: subscriptionInfo
+    }
+  });
+});
 
 /**
  * Get tenant information
@@ -22,16 +132,40 @@ const getTenantInfo = catchAsync(async (req, res, next) => {
 
   // Get usage statistics
   const usage = {
-    users: await User.countDocuments({ tenantId: req.tenantId }),
+    users: await User.countDocuments(User.activeFilter(req.tenantId)),
     orders: await Order.countDocuments({ tenantId: req.tenantId }),
     customers: await Customer.countDocuments({ tenantId: req.tenantId }),
     carriers: await Carrier.countDocuments({ tenantId: req.tenantId })
   };
 
-  // Get subscription plan details
-  const subscriptionPlan = await SubscriptionPlan.findOne({ 
-    slug: tenant.subscription.plan 
-  });
+  // Get subscription plan details - handle both old and new formats
+  let subscriptionPlan = null;
+  
+  if (tenant.subscription.plan) {
+    if (typeof tenant.subscription.plan === 'string') {
+      // Old format - try to find by slug or legacy plan name
+      subscriptionPlan = await SubscriptionPlan.findOne({
+        $or: [
+          { slug: tenant.subscription.plan },
+          { name: { $regex: tenant.subscription.plan, $options: 'i' } }
+        ]
+      });
+    } else {
+      // New format - ObjectId reference
+      subscriptionPlan = await SubscriptionPlan.findById(tenant.subscription.plan);
+    }
+  } else if (tenant.subscription.planSlug) {
+    // Try to find by planSlug
+    subscriptionPlan = await SubscriptionPlan.findOne({ slug: tenant.subscription.planSlug });
+  } else if (tenant.subscription.legacyPlan) {
+    // Try to find by legacy plan name
+    subscriptionPlan = await SubscriptionPlan.findOne({
+      $or: [
+        { slug: tenant.subscription.legacyPlan },
+        { name: { $regex: tenant.subscription.legacyPlan, $options: 'i' } }
+      ]
+    });
+  }
 
   res.json({
     status: true,
@@ -42,16 +176,50 @@ const getTenantInfo = catchAsync(async (req, res, next) => {
         subdomain: tenant.subdomain,
         status: tenant.status,
         subscription: {
-          ...tenant.subscription,
-          planDetails: subscriptionPlan
+          status: tenant.subscription.status || 'active',
+          startDate: tenant.subscription.startDate,
+          endDate: tenant.subscription.endDate,
+          billingCycle: tenant.subscription.billingCycle || 'monthly',
+          planName: subscriptionPlan?.name || tenant.subscription.legacyPlan || tenant.subscription.plan || 'Basic',
+          planSlug: subscriptionPlan?.slug || tenant.subscription.planSlug,
+          planDescription: subscriptionPlan?.description || 'Standard logistics management features',
+          planLimits: subscriptionPlan?.limits || tenant.subscription.planLimits || {
+            maxUsers: tenant.settings.maxUsers || 10,
+            maxOrders: tenant.settings.maxOrders || 1000,
+            maxCustomers: 1000,
+            maxCarriers: 500
+          },
+          
+          planFeatures: subscriptionPlan?.features || tenant.subscription.planFeatures || [
+            'orders', 'customers', 'carriers', 'basic_reporting'
+          ],
+          isActive: tenant.subscription.status === 'active',
+          daysUntilRenewal: tenant.subscription.endDate ? 
+            Math.ceil((new Date(tenant.subscription.endDate) - new Date()) / (1000 * 60 * 60 * 24)) : null
         },
         settings: tenant.settings,
         usage,
         limits: {
-          usersUsed: usage.users,
-          usersLimit: tenant.settings.maxUsers,
-          ordersUsed: usage.orders,
-          ordersLimit: tenant.settings.maxOrders
+          users: {
+            used: usage.users,
+            limit: subscriptionPlan?.limits?.maxUsers || tenant.subscription.planLimits?.maxUsers || tenant.settings.maxUsers || 10,
+            percentage: Math.round((usage.users / (subscriptionPlan?.limits?.maxUsers || tenant.settings.maxUsers || 10)) * 100)
+          },
+          orders: {
+            used: usage.orders,
+            limit: subscriptionPlan?.limits?.maxOrders || tenant.subscription.planLimits?.maxOrders || tenant.settings.maxOrders || 1000,
+            percentage: Math.round((usage.orders / (subscriptionPlan?.limits?.maxOrders || tenant.settings.maxOrders || 1000)) * 100)
+          },
+          customers: {
+            used: usage.customers,
+            limit: subscriptionPlan?.limits?.maxCustomers || tenant.subscription.planLimits?.maxCustomers || 1000,
+            percentage: Math.round((usage.customers / (subscriptionPlan?.limits?.maxCustomers || 1000)) * 100)
+          },
+          carriers: {
+            used: usage.carriers,
+            limit: subscriptionPlan?.limits?.maxCarriers || tenant.subscription.planLimits?.maxCarriers || 500,
+            percentage: Math.round((usage.carriers / (subscriptionPlan?.limits?.maxCarriers || 500)) * 100)
+          }
         }
       },
       company
@@ -108,18 +276,34 @@ const getTenantUsage = catchAsync(async (req, res, next) => {
     return next(new AppError('Tenant not found', 404));
   }
 
+  // Get subscription plan limits - same logic as other functions for consistency
+  let subscriptionPlan = null;
+  if (tenant.subscription.plan) {
+    if (typeof tenant.subscription.plan === 'string') {
+      subscriptionPlan = await SubscriptionPlan.findOne({
+        $or: [
+          { slug: tenant.subscription.plan },
+          { name: { $regex: tenant.subscription.plan, $options: 'i' } }
+        ]
+      });
+    } else {
+      subscriptionPlan = await SubscriptionPlan.findById(tenant.subscription.plan);
+    }
+  }
+
   const currentUsage = {
-    users: await User.countDocuments({ tenantId: req.tenantId }),
+    users: await User.countDocuments(User.activeFilter(req.tenantId)),
     orders: await Order.countDocuments({ tenantId: req.tenantId }),
     customers: await Customer.countDocuments({ tenantId: req.tenantId }),
     carriers: await Carrier.countDocuments({ tenantId: req.tenantId })
   };
 
+  // Use subscription plan limits first, then fallback to tenant settings
   const limits = {
-    maxUsers: tenant.settings.maxUsers,
-    maxOrders: tenant.settings.maxOrders,
-    maxCustomers: tenant.settings.maxCustomers || 999999,
-    maxCarriers: tenant.settings.maxCarriers || 999999
+    maxUsers: subscriptionPlan?.limits?.maxUsers || tenant.subscription?.planLimits?.maxUsers || tenant.settings?.maxUsers || 10,
+    maxOrders: subscriptionPlan?.limits?.maxOrders || tenant.subscription?.planLimits?.maxOrders || tenant.settings?.maxOrders || 1000,
+    maxCustomers: subscriptionPlan?.limits?.maxCustomers || tenant.subscription?.planLimits?.maxCustomers || tenant.settings?.maxCustomers || 999999,
+    maxCarriers: subscriptionPlan?.limits?.maxCarriers || tenant.subscription?.planLimits?.maxCarriers || tenant.settings?.maxCarriers || 999999
   };
   const utilizationPercentage = {
     users: limits.maxUsers > 0 ? (currentUsage.users / limits.maxUsers) * 100 : 0,
@@ -180,8 +364,8 @@ const getTenantAnalytics = catchAsync(async (req, res, next) => {
     totalRevenue,
     newCustomers,
     newCarriers,
-    // recentOrders,
-    // ordersByStatus,
+    recentOrders,
+    ordersByStatus,
     revenueByMonth
   ] = await Promise.all([
     Order.countDocuments({ tenantId: req.tenantId, ...baseFilter }),
@@ -194,18 +378,19 @@ const getTenantAnalytics = catchAsync(async (req, res, next) => {
 
     Carrier.countDocuments(baseFilter),
 
-    // Order.find({ tenantId: req.tenantId })
-    //   .sort({ createdAt: -1 })
-    //   .limit(10)
-    //   .populate('customer', 'name')
-    //   .populate('carrier', 'name')
-    //   .lean(),
+    // Recent orders within the period
+    Order.find({ tenantId: req.tenantId, ...baseFilter })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('customer', 'name')
+      .populate('carrier', 'name')
+      .lean(),
 
-    // Order.aggregate([
-    //   { $match: { tenantId: req.tenantId } },
-    //   { $group: { _id: '$order_status', count: { $sum: 1 } } }
-    // ]),
-
+    // Orders grouped by status within the period
+    Order.aggregate([
+      { $match: { tenantId: req.tenantId, ...baseFilter } },
+      { $group: { _id: '$order_status', count: { $sum: 1 } } }
+    ]),
 
     Order.aggregate([
       { $match: { tenantId: req.tenantId, ...baseFilter } },
@@ -236,17 +421,17 @@ const getTenantAnalytics = catchAsync(async (req, res, next) => {
         newCarriers
       },
       charts: {
-        // ordersByStatus: ordersByStatus.map(item => ({
-        //   status: item._id,
-        //   count: item.count
-        // })),
+        ordersByStatus: ordersByStatus.map(item => ({
+          status: item._id,
+          count: item.count
+        })),
         revenueByMonth: revenueByMonth.map(item => ({
           period: `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
           revenue: item.revenue,
           orders: item.orders
         }))
       },
-      // recentOrders
+      recentOrders
     }
   });
 });
@@ -267,7 +452,7 @@ const getBillingInfo = catchAsync(async (req, res, next) => {
 
   // Calculate usage-based billing (if applicable)
   const currentUsage = {
-    users: await User.countDocuments({ tenantId: req.tenantId }),
+    users: await User.countDocuments(User.activeFilter(req.tenantId)),
     orders: await Order.countDocuments({ tenantId: req.tenantId })
   };
 
@@ -325,7 +510,8 @@ const upgradePlan = catchAsync(async (req, res, next) => {
 const getTenantUsers = catchAsync(async (req, res, next) => {
   const { page = 1, limit = 10, search, role } = req.query;
   
-  const filter = { tenantId: req.tenantId };
+  // Start with active users filter
+  const filter = User.activeFilter(req.tenantId);
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -376,7 +562,7 @@ const inviteUser = catchAsync(async (req, res, next) => {
 
   // Enforce max users limit
   const tenant = await Tenant.findOne({ tenantId: req.tenantId }).select('settings.maxUsers');
-  const currentUsers = await User.countDocuments({ tenantId: req.tenantId });
+  const currentUsers = await User.countDocuments(User.activeFilter(req.tenantId));
   const maxUsersLimit = tenant?.settings?.maxUsers ?? 10;
   if (currentUsers >= maxUsersLimit) {
     return next(new AppError(`User limit reached (${maxUsersLimit}). Upgrade plan to add more users.`, 403));
@@ -608,6 +794,7 @@ const exportData = catchAsync(async (req, res, next) => {
 
 module.exports = {
   getTenantInfo,
+  getSubscriptionDetails,
   updateTenantSettings,
   getTenantUsage,
   getTenantAnalytics,

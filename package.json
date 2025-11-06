@@ -9,7 +9,13 @@
     "dev": "nodemon index.js",
     "live": "nodemon live.js",
     "stripe": "nodemon stripetest.js",
-    "fix-plan-index": "node scripts/fix-plan-index.js"
+    "fix-plan-index": "node scripts/fix-plan-index.js",
+    "setup-plans": "node scripts/create-default-plans.js",
+    "add-sample-data": "node scripts/add-sample-data.js",
+    "migrate-to-cross-miles": "node scripts/migrate-to-cross-miles.js",
+    "fix-tenant-subdomain": "node scripts/fix-tenant-subdomain.js",
+    "normalize-tenant-ids": "node scripts/normalize-tenant-ids.js",
+    "remove-superadmin-permissions": "node scripts/remove-superadmin-permissions.js"
   },
   "author": "",
   "license": "ISC",

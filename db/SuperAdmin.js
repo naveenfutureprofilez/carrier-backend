@@ -36,23 +36,7 @@ const superAdminSchema = new mongoose.Schema({
   role: {
     type: String,
     default: 'super_admin',
-    enum: ['super_admin', 'platform_admin', 'billing_admin'],
-    index: true
-  },
-  permissions: {
-    type: [String],
-    default: [
-      'tenants.create',
-      'tenants.read',
-      'tenants.update',
-      'tenants.delete',
-      'tenants.suspend',
-      'billing.manage',
-      'analytics.view',
-      'system.configure',
-      'users.manage',
-      'reports.generate'
-    ]
+    immutable: true
   },
   status: {
     type: String,

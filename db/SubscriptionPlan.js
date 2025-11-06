@@ -120,9 +120,10 @@ subscriptionPlanSchema.methods.hasPermission = function(permission) {
   return this.permissions.includes(permission);
 };
 
-// Query middleware to only return active plans by default
+// Query middleware to only return active plans by default (skip for superadmin operations)
 subscriptionPlanSchema.pre(/^find/, function(next) {
-  if (!this.getQuery().isActive) {
+  // Don't apply filter if isActive is explicitly set in query or if querying by _id
+  if (!this.getQuery().hasOwnProperty('isActive') && !this.getQuery()._id) {
     this.find({ isActive: { $ne: false } });
   }
   next();

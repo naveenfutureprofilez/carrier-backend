@@ -34,8 +34,13 @@ router.patch('/tenants/:id', validateToken, superAdminTenantController.updateTen
 router.delete('/tenants/:id', validateToken, superAdminTenantController.deleteTenant);
 router.patch('/tenants/:id/status', validateToken, superAdminTenantController.updateTenantStatus);
 router.post('/tenants/:id/invite-admin', validateToken, superAdminTenantController.inviteTenantAdmin);
+router.post('/tenants/:tenantId/ensure-company', validateToken, superAdminTenantController.ensureCompanyRecord);
+// Tenant subscription management
+router.get('/tenants/:tenantId/subscription', validateToken, superAdminTenantController.getTenantSubscriptionDetails);
+router.put('/tenants/:tenantId/subscription', validateToken, superAdminTenantController.updateTenantSubscriptionPlan);
 // Subscription plan management
 router.get('/subscription-plans', validateToken, superAdminTenantController.getSubscriptionPlans);
+router.get('/public/subscription-plans', superAdminTenantController.getSubscriptionPlans); // Public route for frontend
 router.post('/subscription-plans', validateToken, superAdminTenantController.createSubscriptionPlan);
 router.patch('/subscription-plans/:id', validateToken, superAdminTenantController.updateSubscriptionPlan);
 router.delete('/subscription-plans/:id', validateToken, superAdminTenantController.deleteSubscriptionPlan);

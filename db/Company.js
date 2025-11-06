@@ -3,12 +3,12 @@ const schema = new mongoose.Schema({
    // user: { 
    //    type: mongoose.Schema.Types.ObjectId, ref: 'users'
    // },
+   
    tenantId: { 
       type: String, 
       required: true, 
       unique: true,
       index: true,
-      default: 'legacy_tenant_001' // Default for existing data migration
    },
    company_slug: { 
       type:String,

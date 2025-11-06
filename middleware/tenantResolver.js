@@ -77,9 +77,9 @@ const tenantResolver = catchAsync(async (req, res, next) => {
   // Handle tenant requests
   if (subdomain) {
     try {
-      // Find tenant by subdomain
+      // Find tenant by tenantId only
       const tenant = await Tenant.findOne({ 
-        subdomain: subdomain,
+        tenantId: subdomain,
         status: { $in: ['active'] }
       }).lean();
       
@@ -208,9 +208,9 @@ const requireLandingPage = (req, res, next) => {
  */
 const generateTenantUrl = (subdomain, domain = process.env.DOMAIN || 'localhost:3000') => {
   if (domain.includes('localhost')) {
-    return `http://localhost:3000?tenant=${subdomain}`;
+    return `http://localhost:3000/home?tenant=${subdomain}`;
   }
-  return `https://${subdomain}.${domain}`;
+  return `https://${subdomain}.${domain}/home`;
 };
 
 /**
@@ -223,11 +223,38 @@ const generateSuperAdminUrl = (domain = process.env.DOMAIN || 'localhost:3000') 
   return `https://admin.${domain}`;
 };
 
+/**
+ * Lightweight middleware to ensure tenant context is available for API routes
+ * Used for routes that need tenant context but don't want full tenant resolution
+ */
+const ensureTenantContext = catchAsync(async (req, res, next) => {
+  // Prefer tenantId from emulation or previously set context
+  let tParam = req.tenantId;
+
+  // Fallback to query or header if not set
+  if (!tParam) {
+    const tParamRaw = req.query?.tenant || req.headers['x-tenant-id'];
+    tParam = (tParamRaw || '').toString().trim().toLowerCase();
+  }
+
+  if (tParam && !req.tenant) {
+    const tenant = await Tenant.findOne({ 
+      $or: [{ tenantId: tParam }, { subdomain: tParam }]
+    });
+    if (tenant) {
+      req.tenantId = tenant.tenantId;
+      req.tenant = tenant;
+    }
+  }
+  next();
+});
+
 module.exports = {
   tenantResolver,
   requireTenant,
   requireSuperAdmin,
   requireLandingPage,
   generateTenantUrl,
-  generateSuperAdminUrl
+  generateSuperAdminUrl,
+  ensureTenantContext
 };

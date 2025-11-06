@@ -87,8 +87,30 @@ const landingLogin = catchAsync(async (req, res, next) => {
         superAdmin.resetLoginAttempts();
         await superAdmin.save({ validateBeforeSave: false });
 
+        // Create token and send proper response for super admin
+        const token = signToken({
+          id: superAdmin._id,
+          role: 'super_admin',
+          isSuperAdmin: true
+        });
+
+        const cookieOptions = {
+          expires: new Date(
+            Date.now() + (process.env.JWT_COOKIE_EXPIRES_IN || 7) * 24 * 60 * 60 * 1000
+          ),
+          httpOnly: true,
+          sameSite: 'lax'
+        };
+
+        if (process.env.NODE_ENV === 'production') {
+          cookieOptions.secure = true;
+        }
+
+        res.cookie('jwt', token, cookieOptions);
+
         return res.json({
           status: true,
+          token,
           userType: 'super_admin',
           message: 'Super admin login successful',
           redirectUrl: generateSuperAdminUrl(),
@@ -96,7 +118,8 @@ const landingLogin = catchAsync(async (req, res, next) => {
             id: superAdmin._id,
             name: superAdmin.name,
             email: superAdmin.email,
-            role: superAdmin.role
+            role: 'super_admin',
+            isSuperAdmin: true
           }
         });
       } else {
@@ -131,21 +154,57 @@ const landingLogin = catchAsync(async (req, res, next) => {
       return next(new AppError('Company account is suspended', 403));
     }
 
+    // Create token and send proper response for tenant user
+    const token = signToken({
+      id: user._id,
+      tenantId: user.tenantId,
+      role: user.role,
+      is_admin: user.is_admin,
+      isTenantAdmin: user.is_admin === 1 || user.isTenantAdmin
+    });
+
+    const cookieOptions = {
+      expires: new Date(
+        Date.now() + (process.env.JWT_COOKIE_EXPIRES_IN || 7) * 24 * 60 * 60 * 1000
+      ),
+      httpOnly: true,
+      sameSite: 'lax'
+    };
+
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.secure = true;
+    }
+
+    res.cookie('jwt', token, cookieOptions);
+
+    console.log('✅ Login successful, sending response:', {
+      token: token ? 'EXISTS' : 'NULL',
+      userType: 'tenant_user',
+      userId: user._id,
+      userName: user.name,
+      tenantId: user.tenantId
+    });
+
     return res.json({
       status: true,
+      token,
       userType: 'tenant_user',
       message: 'Login successful',
-      redirectUrl: generateTenantUrl(tenant.subdomain),
+      redirectUrl: generateTenantUrl(tenant.subdomain || tenant.tenantId),
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        tenantId: user.tenantId
+        tenantId: user.tenantId,
+        is_admin: user.is_admin,
+        isTenantAdmin: user.is_admin === 1 || user.isTenantAdmin,
+        company: user.company
       },
       tenant: {
         name: tenant.name,
-        subdomain: tenant.subdomain
+        subdomain: tenant.subdomain,
+        tenantId: tenant.tenantId
       }
     });
 
@@ -241,7 +300,6 @@ const superAdminLogin = catchAsync(async (req, res, next) => {
   // Create token with super admin context
   createSendToken(superAdmin, 200, res, {
     role: superAdmin.role,
-    permissions: superAdmin.permissions,
     isSuperAdmin: true
   });
 });
@@ -268,7 +326,25 @@ const validateToken = catchAsync(async (req, res, next) => {
 
     // Check if this is a super admin token
     if (decoded.isSuperAdmin || decoded.role === 'super_admin') {
-      const currentSuperAdmin = await SuperAdmin.findById(decoded.id);
+      // For emulation tokens, we need to find the SuperAdmin record differently
+      // because emulation tokens store the linked User's ID, not SuperAdmin ID
+      let currentSuperAdmin;
+      
+      if (decoded.isEmulating) {
+        // Find SuperAdmin by email or linked userId - first try by User ID
+        const linkedUser = await User.findById(decoded.id);
+        if (linkedUser) {
+          currentSuperAdmin = await SuperAdmin.findOne({ userId: linkedUser._id });
+        }
+        
+        // If not found, try direct SuperAdmin lookup
+        if (!currentSuperAdmin) {
+          currentSuperAdmin = await SuperAdmin.findById(decoded.id);
+        }
+      } else {
+        // For regular super admin tokens, find by ID directly
+        currentSuperAdmin = await SuperAdmin.findById(decoded.id);
+      }
       
       if (!currentSuperAdmin) {
         return next(new AppError('Super admin no longer exists', 401));
@@ -278,12 +354,29 @@ const validateToken = catchAsync(async (req, res, next) => {
         return next(new AppError('Password was changed recently. Please log in again.', 401));
       }
 
-      req.user = currentSuperAdmin;
+      // Get the linked user record for proper role/admin properties
+      const linkedUser = await User.findById(currentSuperAdmin.userId).populate('company');
+      if (!linkedUser) {
+        return next(new AppError('Super admin user record not found', 401));
+      }
+
+      req.user = linkedUser;
+      req.superAdmin = currentSuperAdmin;
       req.isSuperAdminUser = true;
       // When emulating a tenant, scope requests to the emulated tenantId
-      if (decoded.isEmulating && decoded.tenantId) {
+      if (decoded.isEmulating && decoded.emulatedTenantId) {
         req.isEmulating = true;
-        req.tenantId = decoded.tenantId;
+        req.tenantId = decoded.emulatedTenantId;
+        
+        // Load tenant details for emulation context
+        try {
+          const tenant = await Tenant.findOne({ tenantId: decoded.emulatedTenantId });
+          if (tenant) {
+            req.tenant = tenant;
+          }
+        } catch (err) {
+          console.error('Failed to load tenant during emulation:', err);
+        }
       }
       // Allow super admin to scope by tenant via query/header without generating a new token
       const tParamRaw = (req.query && req.query.tenant) ? req.query.tenant : (req.headers['x-tenant-id'] || '');
@@ -344,7 +437,7 @@ const validateToken = catchAsync(async (req, res, next) => {
  * Tenant emulation for super admin
  */
 const emulateTenant = catchAsync(async (req, res, next) => {
-  // Check for super admin access (compatible with both auth systems)
+  // Check for super admin access
   const isSuperAdmin = req.isSuperAdminUser || req.superAdmin;
   if (!isSuperAdmin) {
     return next(new AppError('Super admin access required', 403));
@@ -356,23 +449,23 @@ const emulateTenant = catchAsync(async (req, res, next) => {
     return next(new AppError('Tenant ID is required', 400));
   }
 
-  // Find tenant
+  // Find tenant by tenantId (slug)
   const tenant = await Tenant.findOne({ tenantId });
   if (!tenant) {
     return next(new AppError('Tenant not found', 404));
   }
 
-  // Generate new token with tenant context
+  // Generate new token with emulation flags
   const emulationToken = signToken({
     id: req.user._id,
-    tenantId: tenant.tenantId,
     role: 'super_admin',
     isSuperAdmin: true,
     isEmulating: true,
+    emulatedTenantId: tenant.tenantId,
     originalUserId: req.user._id
   });
 
-  // Also set cookie to ensure new tab picks correct session
+  // Set cookie for browser session
   const cookieOptions = {
     expires: new Date(
       Date.now() + (process.env.JWT_COOKIE_EXPIRES_IN || 7) * 24 * 60 * 60 * 1000
@@ -385,12 +478,26 @@ const emulateTenant = catchAsync(async (req, res, next) => {
   }
   res.cookie('jwt', emulationToken, cookieOptions);
 
+  // Generate appropriate redirect URL
+  const domain = process.env.DOMAIN;
+  let redirectUrl;
+  if (!domain || domain.includes('localhost')) {
+    redirectUrl = `http://localhost:3000/home?tenant=${tenant.tenantId}`;
+  } else {
+    redirectUrl = `https://${tenant.tenantId}.${domain}`;
+  }
+
   res.json({
     status: true,
     message: `Now emulating tenant: ${tenant.name}`,
     token: emulationToken,
-    tenant: tenant,
-    redirectUrl: generateTenantUrl(tenant.subdomain)
+    tenant: {
+      tenantId: tenant.tenantId,
+      name: tenant.name,
+      subdomain: tenant.subdomain,
+      status: tenant.status
+    },
+    redirectUrl
   });
 });
 
@@ -398,15 +505,45 @@ const emulateTenant = catchAsync(async (req, res, next) => {
  * Stop tenant emulation
  */
 const stopEmulation = catchAsync(async (req, res, next) => {
-  if (!req.user.isEmulating) {
+  console.log('🛑 stopEmulation called');
+  console.log('🔍 req.user:', JSON.stringify(req.user, null, 2));
+  console.log('🔍 req.isSuperAdminUser:', req.isSuperAdminUser);
+  console.log('🔍 req.superAdmin:', req.superAdmin);
+  
+  // Validate that user is currently emulating or is a super admin
+  const isSuperAdmin = req.isSuperAdminUser || req.superAdmin;
+  const isEmulating = req.isEmulating; // This comes from token validation
+  
+  console.log('✅ isSuperAdmin:', isSuperAdmin);
+  console.log('✅ isEmulating (from token):', isEmulating);
+  console.log('✅ req.tenantId:', req.tenantId);
+  
+  if (!isSuperAdmin) {
+    console.log('❌ Validation failed: Not a super admin');
+    return next(new AppError('Super admin access required', 403));
+  }
+  
+  if (!isEmulating) {
+    console.log('❌ Validation failed: Not currently emulating');
     return next(new AppError('Not currently emulating', 400));
   }
+  
+  console.log('✅ Validation passed, proceeding with stop emulation');
 
-  // Generate new token without emulation
+  // Ensure we have superAdmin record for proper token generation
+  if (!req.superAdmin && req.isSuperAdminUser) {
+    const superAdmin = await SuperAdmin.findOne({ userId: req.user._id });
+    if (superAdmin) {
+      req.superAdmin = superAdmin;
+    }
+  }
+
+  // Generate new clean super admin token
   const token = signToken({
-    id: req.user.originalUserId || req.user._id,
+    id: req.user._id,
     role: 'super_admin',
-    isSuperAdmin: true
+    isSuperAdmin: true,
+    isEmulating: false
   });
 
   // Reset cookie to non-emulation token
@@ -422,11 +559,20 @@ const stopEmulation = catchAsync(async (req, res, next) => {
   }
   res.cookie('jwt', token, cookieOptions);
 
+  // Generate appropriate redirect URL
+  const domain = process.env.DOMAIN;
+  let redirectUrl;
+  if (!domain || domain.includes('localhost')) {
+    redirectUrl = `http://localhost:3000/super-admin`;
+  } else {
+    redirectUrl = `https://admin.${domain}`;
+  }
+
   res.json({
     status: true,
     message: 'Stopped emulation',
     token: token,
-    redirectUrl: generateSuperAdminUrl()
+    redirectUrl
   });
 });
 
@@ -434,24 +580,71 @@ const stopEmulation = catchAsync(async (req, res, next) => {
  * Get current user profile
  */
 const getProfile = catchAsync(async (req, res, next) => {
+  const isSuperAdmin = req.isSuperAdminUser || req.superAdmin;
+  const isEmulating = req.isEmulating && req.tenantId;
+  
   let profile = {
     id: req.user._id,
     name: req.user.name,
-    email: req.user.email
+    email: req.user.email,
+    status: req.user.status || 'active'
   };
 
-  const isSuperAdmin = req.isSuperAdminUser || req.superAdmin;
-  if (isSuperAdmin) {
+  if (isSuperAdmin && isEmulating) {
+    // Super admin emulating a tenant - show superadmin's actual details
+    profile.name = `${req.user.name} (Emulating)`;
+    profile.userType = 'super_admin_emulating';
     profile.role = req.user.role;
-    profile.permissions = req.user.permissions || (req.superAdmin && req.superAdmin.permissions);
+    
+    // Show superadmin's actual details, not tenant details
+    profile.id = req.user._id; // Keep superadmin's real ID
+    profile.email = req.user.email; // Keep superadmin's real email
+    profile.corporateId = req.user.corporateID || 'N/A';
+    profile.status = 'active'; // Superadmin is always active during emulation
+    
+    // Add emulation context
+    profile.isEmulating = true;
+    profile.emulatedTenantId = req.tenantId;
+    
+    // Get tenant information if available
+    if (req.tenant) {
+      profile.tenant = {
+        tenantId: req.tenant.tenantId,
+        name: req.tenant.name,
+        subdomain: req.tenant.subdomain,
+        status: req.tenant.status
+      };
+      
+      // Add context about which tenant is being emulated
+      profile.emulatingTenant = {
+        tenantId: req.tenant.tenantId,
+        name: req.tenant.name
+      };
+    }
+    
+  } else if (isSuperAdmin) {
+    // Regular super admin (not emulating)
+    profile.role = req.user.role;
     profile.userType = 'super_admin';
+    profile.corporateId = req.user.corporateID || 'N/A';
+    
   } else {
+    // Regular tenant user
     profile.role = req.user.role;
     profile.is_admin = req.user.is_admin;
     profile.tenantId = req.user.tenantId;
+    profile.corporateId = req.user.corporateID || 'N/A';
     profile.company = req.user.company;
     profile.userType = 'tenant_user';
-    profile.tenant = req.tenant;
+    
+    if (req.tenant) {
+      profile.tenant = {
+        tenantId: req.tenant.tenantId,
+        name: req.tenant.name,
+        subdomain: req.tenant.subdomain,
+        status: req.tenant.status
+      };
+    }
   }
 
   res.json({

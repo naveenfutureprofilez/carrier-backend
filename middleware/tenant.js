@@ -7,10 +7,10 @@ const AppError = require('../utils/AppError');
  * For API routes that need tenant context
  */
 const resolveTenant = catchAsync(async (req, res, next) => {
-  let tenantId = null;
+  let tenantId = req.tenantId || null;
   
   // Try to get tenant ID from user context first
-  if (req.user && req.user.tenantId) {
+  if (!tenantId && req.user && req.user.tenantId) {
     tenantId = req.user.tenantId;
   }
   
@@ -29,6 +29,11 @@ const resolveTenant = catchAsync(async (req, res, next) => {
     tenantId = req.query.tenantId;
   }
   
+  // Also check for 'tenant' parameter (alternative naming)
+  if (!tenantId && req.query.tenant) {
+    tenantId = req.query.tenant;
+  }
+  
   // Fallback to header
   if (!tenantId && req.headers['x-tenant-id']) {
     tenantId = req.headers['x-tenant-id'];
@@ -38,19 +43,14 @@ const resolveTenant = catchAsync(async (req, res, next) => {
     return next(new AppError('Tenant context required', 400));
   }
   
-  // Verify tenant exists and is active
+  // Verify tenant exists and is active or trial (use tenantId only)
   const tenant = await Tenant.findOne({ 
     tenantId: tenantId,
-    status: { $in: ['active'] }
+    status: { $in: ['active', 'trial'] }
   });
   
   if (!tenant) {
-    return next(new AppError('Tenant not found or inactive', 404));
-  }
-  
-  // Check subscription status
-  if (!tenant.subscription || tenant.subscription.status !== 'active') {
-    return next(new AppError('Tenant subscription is inactive', 403));
+    return next(new AppError('Company not found or inactive', 404));
   }
   
   req.tenant = tenant;
@@ -59,40 +59,31 @@ const resolveTenant = catchAsync(async (req, res, next) => {
   next();
 });
 
-/**
- * Optional tenant resolution
- * Sets tenant context if available but doesn't require it
- */
+// Optional tenant resolution (do not throw on missing/invalid but set when valid)
 const optionalTenant = catchAsync(async (req, res, next) => {
-  let tenantId = null;
+  let tenantId = req.tenantId || null;
   
-  if (req.user && req.user.tenantId) {
+  if (!tenantId && req.user && req.user.tenantId) {
     tenantId = req.user.tenantId;
-  }
-  
-  // Try to extract from subdomain (for production)
-  if (!tenantId && req.headers.host) {
-    const hostname = req.headers.host.split(':')[0]; // Remove port if present
-    const subdomainMatch = hostname.match(/^([^.]+)\./); // Extract subdomain
-    
-    if (subdomainMatch && subdomainMatch[1] !== 'www' && subdomainMatch[1] !== 'admin') {
-      tenantId = subdomainMatch[1];
-    }
-  }
-  
-  if (!tenantId && req.query.tenantId) {
-    tenantId = req.query.tenantId;
   }
   
   if (!tenantId && req.headers['x-tenant-id']) {
     tenantId = req.headers['x-tenant-id'];
   }
   
+  if (!tenantId && req.query.tenantId) {
+    tenantId = req.query.tenantId;
+  }
+  
+  if (!tenantId && req.query.tenant) {
+    tenantId = req.query.tenant;
+  }
+  
   if (tenantId) {
     try {
-      const tenant = await Tenant.findOne({ 
-        tenantId: tenantId,
-        status: { $in: ['active'] }
+      const tenant = await Tenant.findOne({
+        tenantId,
+        status: { $in: ['active', 'trial'] }
       });
       
       if (tenant) {

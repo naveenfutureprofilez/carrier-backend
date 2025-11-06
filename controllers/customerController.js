@@ -3,6 +3,7 @@ const APIFeatures  = require("../utils/APIFeatures");
 const Customer = require("../db/Customer");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
+const { checkCustomerLimit } = require("../middlewares/planLimitsMiddleware");
 
 exports.addCustomer = catchAsync(async (req, res, next) => {
   const { name, phone, 
@@ -98,7 +99,7 @@ exports.customers_listing = catchAsync(async (req, res) => {
   }
 
   if (req.user && req.user.is_admin === 1 && req.user.role === 3) {
-  }  else {
+  } else {
      queryObj.assigned_to = req.user._id;
   }
 

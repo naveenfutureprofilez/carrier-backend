@@ -97,7 +97,7 @@ const getAllTenants = catchAsync(async (req, res, next) => {
     tenants.map(async (tenant) => {
       const [usage, subscriptionPlan, financialAgg] = await Promise.all([
         Promise.all([
-          User.countDocuments({ tenantId: tenant.tenantId }),
+          User.countDocuments(User.activeFilter(tenant.tenantId)),
           Order.countDocuments({ tenantId: tenant.tenantId }),
           Customer.countDocuments({ tenantId: tenant.tenantId }),
           Carrier.countDocuments({ tenantId: tenant.tenantId })
@@ -157,7 +157,7 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
   const [company, usage, subscriptionPlan, financialAgg] = await Promise.all([
     Company.findOne({ tenantId }),
     Promise.all([
-      User.countDocuments({ tenantId }),
+      User.countDocuments(User.activeFilter(tenantId)),
       Order.countDocuments({ tenantId }),
       Customer.countDocuments({ tenantId }),
       Carrier.countDocuments({ tenantId })
@@ -199,13 +199,20 @@ const updateTenantStatus = catchAsync(async (req, res, next) => {
   const { tenantId } = req.params;
   const { status, reason } = req.body;
   
+  // Validate status
+  const validStatuses = ['active', 'suspended', 'pending', 'cancelled'];
+  if (!validStatuses.includes(status)) {
+    return next(new AppError('Invalid status. Must be one of: ' + validStatuses.join(', '), 400));
+  }
+  
   const tenant = await Tenant.findOneAndUpdate(
     { tenantId },
     { 
       status,
       'billing.statusChangeReason': reason,
       'billing.statusChangedAt': new Date(),
-      'billing.statusChangedBy': req.user._id
+      'billing.statusChangedBy': req.user._id,
+      updatedAt: new Date()
     },
     { new: true }
   );
@@ -263,7 +270,8 @@ const updateTenantPlan = catchAsync(async (req, res, next) => {
  * Get all subscription plans
  */
 const getSubscriptionPlans = catchAsync(async (req, res, next) => {
-  const plans = await SubscriptionPlan.find().sort({ name: 1 });
+  // For superadmin, include both active and inactive plans
+  const plans = await SubscriptionPlan.find({}).sort({ name: 1 });
   
   res.json({
     status: true,
@@ -293,15 +301,22 @@ const createSubscriptionPlan = catchAsync(async (req, res, next) => {
 const updateSubscriptionPlan = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   
-  const plan = await SubscriptionPlan.findByIdAndUpdate(
-    id,
+  console.log('Update request for plan ID:', id);
+  console.log('Update payload:', JSON.stringify(req.body, null, 2));
+  
+  // Use findOneAndUpdate with _id to bypass the pre-find middleware
+  const plan = await SubscriptionPlan.findOneAndUpdate(
+    { _id: id },
     { ...req.body, updatedAt: new Date() },
     { new: true, runValidators: true }
   );
 
   if (!plan) {
+    console.log('Plan update failed for ID:', id);
     return next(new AppError('Subscription plan not found', 404));
   }
+  
+  console.log('Plan after update:', JSON.stringify(plan, null, 2));
 
   res.json({
     status: true,
@@ -316,16 +331,26 @@ const updateSubscriptionPlan = catchAsync(async (req, res, next) => {
 const deleteSubscriptionPlan = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   
-  // Check if any tenant is using this plan
-  const tenantsUsingPlan = await Tenant.countDocuments({ 'subscription.plan': id });
+  console.log('Delete request for plan ID:', id);
+  
+  // First find the plan to get its slug for tenant check
+  const plan = await SubscriptionPlan.findOne({ _id: id });
+  if (!plan) {
+    return next(new AppError('Subscription plan not found', 404));
+  }
+  
+  // Check if any tenant is using this plan (check by slug, not id)
+  const tenantsUsingPlan = await Tenant.countDocuments({ 'subscription.plan': plan.slug });
   if (tenantsUsingPlan > 0) {
     return next(new AppError('Cannot delete plan that is in use by tenants', 400));
   }
 
-  const plan = await SubscriptionPlan.findByIdAndDelete(id);
-  if (!plan) {
+  const deletedPlan = await SubscriptionPlan.findOneAndDelete({ _id: id });
+  if (!deletedPlan) {
     return next(new AppError('Subscription plan not found', 404));
   }
+
+  console.log('Plan deleted successfully:', deletedPlan.name);
 
   res.json({
     status: true,
@@ -347,12 +372,6 @@ const createTenant = catchAsync(async (req, res, next) => {
     companyInfo
   } = req.body;
 
-  // Check if subdomain is available
-  const existingTenant = await Tenant.findOne({ subdomain });
-  if (existingTenant) {
-    return next(new AppError('Subdomain already exists', 400));
-  }
-
   // Check if admin email already exists
   const existingUser = await User.findOne({ email: adminEmail });
   if (existingUser) {
@@ -370,15 +389,39 @@ const createTenant = catchAsync(async (req, res, next) => {
   const planSlug = plan?.slug || subscriptionPlan;
   const tenantPlanKey = allowedPlans.find(p => planSlug.startsWith(p)) || 'basic';
 
-  // Generate unique tenant ID
-  const tenantId = `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  // Helper function to create URL-friendly tenant ID from name
+  const createTenantId = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+      .substring(0, 50); // Limit length
+  };
 
-  // Create tenant
+  // Generate unique tenant ID from name
+  let tenantId = createTenantId(name);
+  
+  // Check if this tenant ID already exists and make it unique if needed
+  let existingTenant = await Tenant.findOne({ tenantId });
+  if (existingTenant) {
+    let counter = 1;
+    let testId = `${tenantId}-${counter}`;
+    
+    while (await Tenant.findOne({ tenantId: testId })) {
+      counter++;
+      testId = `${tenantId}-${counter}`;
+    }
+    
+    tenantId = testId;
+  }
+
+  // Create tenant (use tenantId only, no subdomain)
   const tenant = await Tenant.create({
     tenantId,
     name,
     domain: process.env.DOMAIN || 'localhost',
-    subdomain,
     status: 'active',
     contactInfo: {
       adminName,
@@ -596,11 +639,13 @@ const exportSystemData = catchAsync(async (req, res, next) => {
  */
 const updateTenantSettings = catchAsync(async (req, res, next) => {
   const { tenantId } = req.params;
-  const { maxUsers, maxOrders } = req.body;
+  const { maxUsers, maxOrders, maxCustomers, maxCarriers } = req.body;
 
   const update = { updatedAt: new Date() };
   if (maxUsers !== undefined) update['settings.maxUsers'] = Number(maxUsers);
   if (maxOrders !== undefined) update['settings.maxOrders'] = Number(maxOrders);
+  if (maxCustomers !== undefined) update['settings.maxCustomers'] = Number(maxCustomers);
+  if (maxCarriers !== undefined) update['settings.maxCarriers'] = Number(maxCarriers);
 
   const tenant = await Tenant.findOneAndUpdate(
     { tenantId },
@@ -619,6 +664,43 @@ const updateTenantSettings = catchAsync(async (req, res, next) => {
   });
 });
 
+/**
+ * Update tenant basic information
+ */
+const updateTenantInfo = catchAsync(async (req, res, next) => {
+  const { tenantId } = req.params;
+  const { name, contactInfo } = req.body;
+
+  const update = { updatedAt: new Date() };
+  if (name) update.name = name;
+  if (contactInfo) {
+    if (contactInfo.adminName) update['contactInfo.adminName'] = contactInfo.adminName;
+    if (contactInfo.adminEmail) update['contactInfo.adminEmail'] = contactInfo.adminEmail;
+    if (contactInfo.phone) update['contactInfo.phone'] = contactInfo.phone;
+    if (contactInfo.address) update['contactInfo.address'] = contactInfo.address;
+    if (contactInfo.city) update['contactInfo.city'] = contactInfo.city;
+    if (contactInfo.state) update['contactInfo.state'] = contactInfo.state;
+    if (contactInfo.country) update['contactInfo.country'] = contactInfo.country;
+    if (contactInfo.zipcode) update['contactInfo.zipcode'] = contactInfo.zipcode;
+  }
+
+  const tenant = await Tenant.findOneAndUpdate(
+    { tenantId },
+    update,
+    { new: true, runValidators: true }
+  );
+
+  if (!tenant) {
+    return next(new AppError('Tenant not found', 404));
+  }
+
+  res.json({
+    status: true,
+    data: { tenant },
+    message: 'Tenant information updated successfully'
+  });
+});
+
 module.exports = {
   getSystemOverview,
   getAllTenants,
@@ -626,6 +708,7 @@ module.exports = {
   updateTenantStatus,
   updateTenantPlan,
   updateTenantSettings,
+  updateTenantInfo,
   getSubscriptionPlans,
   createSubscriptionPlan,
   updateSubscriptionPlan,

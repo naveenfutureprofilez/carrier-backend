@@ -7,6 +7,7 @@ const Commudity = require("../db/Commudity");
 const Equipment = require("../db/Equipment");
 const Charges = require("../db/Charges");
 const PaymentLogs = require("../db/PaymentLogs");
+const { checkOrderLimit } = require("../middlewares/planLimitsMiddleware");
 
 async function CreatePaymentLog(user, order, status, method, type, approval) {
    const payment = PaymentLogs.create({
@@ -220,8 +221,8 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       queryObj.order_status = status;
    }
 
-   if (req.user && req.user.role !== 1) {
-   }  else {
+   // Apply created_by filter only for regular users (role === 1)
+   if (req.user && req.user.role === 1) {
       queryObj.created_by = req.user._id;
    }
 
@@ -435,20 +436,37 @@ exports.overview = catchAsync(async (req, res) => {
    };
    
    let queryFilter;
-   if(req.user.role === 1){
-      // For regular users, include created_by filter
+   
+   // Check if this is a super admin emulating a tenant
+   const isEmulating = req.isEmulating || req.isSuperAdminUser;
+   const isRegularUser = req.user.role === 1 && !isEmulating;
+   
+   if(isRegularUser){
+      // For regular users (non-admin, non-emulating), include created_by filter
       queryFilter = {
          created_by: req.user._id,
          ...baseDeletedFilter
       };
    } else {
-      // For admin users, only apply deleted filter
+      // For admin users or super admins emulating, only apply deleted filter
       queryFilter = baseDeletedFilter;
    }
 
    // Scope dashboard counts by tenant when available
    if (req.tenantId) {
       queryFilter.tenantId = req.tenantId;
+      console.log('📊 Overview: Using tenantId filter:', req.tenantId);
+   } else {
+      console.log('⚠️ Overview: No tenantId provided - this might show all data!');
+   }
+   
+   // Debug logging for emulation
+   if (isEmulating) {
+      console.log('🎭 Super admin emulating tenant dashboard');
+      console.log('   req.user.role:', req.user.role);
+      console.log('   req.tenantId:', req.tenantId);
+      console.log('   req.isEmulating:', req.isEmulating);
+      console.log('   req.isSuperAdminUser:', req.isSuperAdminUser);
    }
    
    // Count documents with proper filter
@@ -589,14 +607,41 @@ exports.deleteOrder = catchAsync(async (req, res) => {
 
 exports.addCummodity = catchAsync(async (req, res, next) => {
    const { value } = req.body;
+   const tenantId = req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   
+   if (!tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
+   if (!value || !value.trim()) {
+      return res.status(400).json({
+         status: false,
+         message: "Commodity name is required."
+      });
+   }
+   
+   // Check if commodity already exists for this tenant
+   const existing = await Commudity.findOne({ tenantId, name: value.trim() });
+   if (existing) {
+      return res.status(409).json({
+         status: false,
+         message: "Commodity already exists for this tenant."
+      });
+   }
+   
    Commudity.create({
-      name: value,
-      company:req.user && req.user.company ? req.user.company._id : null,
+      name: value.trim(),
+      tenantId,
+      company: req.user && req.user.company ? req.user.company._id : null,
    }).then(result => {
       res.send({
-      status: true,
-      message: "Commudity has been added.",
-   });
+         status: true,
+         message: "Commudity has been added.",
+         data: result
+      });
    }).catch(err => {
       JSONerror(res, err, next);
       logger(err);
@@ -605,8 +650,23 @@ exports.addCummodity = catchAsync(async (req, res, next) => {
 
 exports.removeCummodity = catchAsync(async (req, res, next) => {
    const { id } = req.body;
-   Commudity.findByIdAndDelete(id)
-     .then(() => {
+   const tenantId = req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   
+   if (!tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
+   Commudity.deleteOne({ _id: id, tenantId })
+     .then((result) => {
+       if (result.deletedCount === 0) {
+         return res.status(404).json({
+           status: false,
+           message: "Commodity not found for this tenant."
+         });
+       }
        res.send({
          status: true,
          message: "Commudity has been permanently removed.",
@@ -619,7 +679,16 @@ exports.removeCummodity = catchAsync(async (req, res, next) => {
 });
 
 exports.cummodityLists = catchAsync(async (req, res, next) => {
-   const list = await Commudity.find({});
+   const filter = req.dbFilter || { tenantId: req.tenantId };
+   
+   if (!filter || !filter.tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
+   const list = await Commudity.find(filter).sort({ name: 1 });
    const arr = [];
    list.map((item) => {
       arr.push({
@@ -630,20 +699,47 @@ exports.cummodityLists = catchAsync(async (req, res, next) => {
    })
    res.send({
       status: true,
-      list: arr ,
+      list: arr,
    });
 });
 
 exports.addEquipment = catchAsync(async (req, res, next) => {
    const { value } = req.body;
+   const tenantId = req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   
+   if (!tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
+   if (!value || !value.trim()) {
+      return res.status(400).json({
+         status: false,
+         message: "Equipment name is required."
+      });
+   }
+   
+   // Check if equipment already exists for this tenant
+   const existing = await Equipment.findOne({ tenantId, name: value.trim() });
+   if (existing) {
+      return res.status(409).json({
+         status: false,
+         message: "Equipment already exists for this tenant."
+      });
+   }
+   
    Equipment.create({
-      name: value,
-      company:req.user && req.user.company ? req.user.company._id : null,
+      name: value.trim(),
+      tenantId,
+      company: req.user && req.user.company ? req.user.company._id : null,
    }).then(result => {
       res.send({
-      status: true,
-      message: "Equipment has been added.",
-   });
+         status: true,
+         message: "Equipment has been added.",
+         data: result
+      });
    }).catch(err => {
       JSONerror(res, err, next);
       logger(err);
@@ -652,9 +748,24 @@ exports.addEquipment = catchAsync(async (req, res, next) => {
 
 exports.removeEquipment = catchAsync(async (req, res, next) => {
    const { id } = req.body;
+   const tenantId = req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   
+   if (!tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
    console.log("id",id)
-   Equipment.findByIdAndDelete(id)
-     .then(() => {
+   Equipment.deleteOne({ _id: id, tenantId })
+     .then((result) => {
+       if (result.deletedCount === 0) {
+         return res.status(404).json({
+           status: false,
+           message: "Equipment not found for this tenant."
+         });
+       }
        res.send({
          status: true,
          message: "Equipment has been permanently removed.",
@@ -667,7 +778,16 @@ exports.removeEquipment = catchAsync(async (req, res, next) => {
 });
 
 exports.equipmentLists = catchAsync(async (req, res, next) => {
-   const list = await Equipment.find({});
+   const filter = req.dbFilter || { tenantId: req.tenantId };
+   
+   if (!filter || !filter.tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
+   const list = await Equipment.find(filter).sort({ name: 1 });
    const arr = [];
    list.map((item) => {
       arr.push({
@@ -678,7 +798,7 @@ exports.equipmentLists = catchAsync(async (req, res, next) => {
    })
    res.send({
       status: true,
-      list: arr ,
+      list: arr,
    });
 });
 

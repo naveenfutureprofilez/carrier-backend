@@ -22,12 +22,12 @@ const tenantSchema = new mongoose.Schema({
   },
   subdomain: {
     type: String,
-    required: [true, 'Subdomain is required'],
-    unique: true,
+    required: false, // Optional - will use tenantId if not provided
     trim: true,
     lowercase: true,
     validate: {
       validator: function(v) {
+        if (!v) return true; // Allow null/undefined
         // Validate subdomain format (alphanumeric and hyphens only)
         return /^[a-z0-9-]+$/.test(v);
       },
@@ -41,14 +41,25 @@ const tenantSchema = new mongoose.Schema({
     index: true
   },
   subscription: {
+    // Flexible plan field - accepts both ObjectId (new format) and String (old format)
     plan: {
+      type: mongoose.Schema.Types.Mixed, // Accepts both ObjectId and String
+      ref: 'subscription_plans',
+      required: false
+    },
+    // Legacy format - string plan name (for backward compatibility)
+    legacyPlan: {
       type: String,
-      enum: ['basic', 'standard', 'premium', 'enterprise'],
-      default: 'basic'
+      enum: ['basic', 'standard', 'premium', 'enterprise']
+    },
+    planSlug: {
+      type: String,
+      required: false, // Made optional
+      index: true
     },
     status: {
       type: String,
-      enum: ['active', 'cancelled', 'past_due'],
+      enum: ['active', 'cancelled', 'past_due', 'trial'],
       default: 'active'
     },
     startDate: {
@@ -62,7 +73,20 @@ const tenantSchema = new mongoose.Schema({
       default: 'monthly'
     },
     stripeCustomerId: String,
-    stripeSubscriptionId: String
+    stripeSubscriptionId: String,
+    // Store plan limits at subscription time for historical reference
+    planLimits: {
+      maxUsers: { type: Number, required: false, default: 10 },
+      maxOrders: { type: Number, required: false, default: 1000 },
+      maxCustomers: { type: Number, required: false, default: 1000 },
+      maxCarriers: { type: Number, required: false, default: 500 }
+    },
+    // Store plan features at subscription time
+    planFeatures: {
+      type: [String],
+      required: false,
+      default: ['orders', 'customers', 'carriers', 'basic_reporting']
+    }
   },
   settings: {
     maxUsers: {
@@ -176,16 +200,18 @@ const tenantSchema = new mongoose.Schema({
 
 // Indexes for performance
 tenantSchema.index({ tenantId: 1 });
-tenantSchema.index({ subdomain: 1 });
 tenantSchema.index({ status: 1 });
 tenantSchema.index({ 'subscription.status': 1 });
 tenantSchema.index({ createdAt: -1 });
-// Ensure unique combination of domain + subdomain (full domain uniqueness)
-tenantSchema.index({ domain: 1, subdomain: 1 }, { unique: true });
 
-// Virtual for full domain
+// Virtual for full domain (use tenantId as subdomain)
 tenantSchema.virtual('fullDomain').get(function() {
-  return `${this.subdomain}.${this.domain}`;
+  return `${this.tenantId}.${this.domain}`;
+});
+
+// Virtual for subdomain (returns tenantId if subdomain not set)
+tenantSchema.virtual('subdomainOrTenantId').get(function() {
+  return this.subdomain || this.tenantId;
 });
 
 // Virtual for subscription active status

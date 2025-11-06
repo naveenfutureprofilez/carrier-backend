@@ -48,10 +48,12 @@ exports.deleteCurrentUser = catchAsync( async (req, res, next) => {
 });
 
 exports.staffListing = catchAsync(async (req, res) => {
-    let Query = new APIFeatures(User.find({
-         role : 1,
-        deletedAt : null || '',
-    }), req.query ).sort();
+    // Use tenantId from tenant resolver middleware (req.tenantId) or fallback to user's tenant
+    const tenantId = req.tenantId || req.user?.tenantId;
+    const baseFilter = tenantId 
+        ? { ...User.activeFilter(tenantId), role: 1 }
+        : { role: 1, status: 'active', $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }] };
+    let Query = new APIFeatures(User.find(baseFilter), req.query).sort();
     const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
     const data = await query;
     res.json({

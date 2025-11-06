@@ -6,7 +6,8 @@ const {
   logout
 } = require('../controllers/multiTenantAuthController');
 const { 
-  requireTenant
+  requireTenant,
+  ensureTenantContext
 } = require('../middleware/tenantResolver');
 const { validateToken } = require('../controllers/multiTenantAuthController');
 
@@ -22,6 +23,9 @@ const tenantDataFilter = (req, res, next) => {
 
 // Apply tenant filtering to all routes
 router.use(tenantDataFilter);
+
+// Ensure tenant context is available (for superadmin emulation)
+router.use(ensureTenantContext);
 
 // Authentication routes
 router.post('/login', requireTenant, tenantLogin);
@@ -49,6 +53,123 @@ router.get('/user/employee/detail/:id', validateToken, authController.employeeDe
 router.get('/user/employee/docs/:id', validateToken, authController.employeesDocs);
 router.post('/user/add-company-information', validateToken, authController.addCompanyInfo);
 router.post('/user/change-password', validateToken, authController.changePassword);
+
+// Admin endpoint for updating user email during emulation
+router.patch('/admin/users/:id/email', validateToken, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const userId = req.params.id;
+    
+    // Verify superadmin access
+    if (!req.isSuperAdminUser && !req.superAdmin) {
+      return res.status(403).json({
+        status: false,
+        message: 'Super admin access required'
+      });
+    }
+    
+    // Validate email
+    if (!email) {
+      return res.status(400).json({
+        status: false,
+        message: 'Email is required'
+      });
+    }
+    
+    // Find user within tenant context
+    const User = require('../db/Users');
+    const filter = { _id: userId };
+    if (req.tenantId) {
+      filter.tenantId = req.tenantId;
+    }
+    
+    const user = await User.findOne(filter);
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Update email
+    user.email = email;
+    await user.save();
+    
+    res.json({
+      status: true,
+      message: 'Email updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Admin email update error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Failed to update email'
+    });
+  }
+});
+
+// Admin endpoint for setting user password during emulation
+router.patch('/admin/users/:id/password', validateToken, async (req, res) => {
+  try {
+    const { password, confirmPassword } = req.body;
+    const userId = req.params.id;
+    
+    // Verify superadmin access
+    if (!req.isSuperAdminUser && !req.superAdmin) {
+      return res.status(403).json({
+        status: false,
+        message: 'Super admin access required'
+      });
+    }
+    
+    // Validate passwords
+    if (!password || !confirmPassword) {
+      return res.status(400).json({
+        status: false,
+        message: 'Password and confirm password are required'
+      });
+    }
+    
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        status: false,
+        message: 'Passwords do not match'
+      });
+    }
+    
+    // Find user within tenant context
+    const User = require('../db/Users');
+    const filter = { _id: userId };
+    if (req.tenantId) {
+      filter.tenantId = req.tenantId;
+    }
+    
+    const user = await User.findOne(filter);
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Update password
+    user.password = password;
+    await user.save();
+    
+    res.json({
+      status: true,
+      message: 'Password updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Admin password reset error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Failed to update password'
+    });
+  }
+});
 router.patch('/user/update', validateToken, userController.updateCurrentUserData);
 router.delete('/user/delete', validateToken, userController.deleteCurrentUser);
 router.get('/user/staff-listing', validateToken, userController.staffListing);

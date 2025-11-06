@@ -7,6 +7,7 @@ const {
   updateTenantStatus,
   updateTenantPlan,
   updateTenantSettings,
+  updateTenantInfo,
   getSubscriptionPlans,
   createSubscriptionPlan,
   updateSubscriptionPlan,
@@ -73,6 +74,7 @@ router.get('/tenants/:tenantId', getTenantDetails);
 router.put('/tenants/:tenantId/status', updateTenantStatus);
 router.put('/tenants/:tenantId/plan', updateTenantPlan);
 router.put('/tenants/:tenantId/settings', updateTenantSettings);
+router.put('/tenants/:tenantId/info', updateTenantInfo);
 router.get('/tenants/:tenantId/logs', getTenantActivityLogs);
 // Invite tenant admin and approve
 router.post('/tenants/:id/invite-admin', inviteTenantAdmin);

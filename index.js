@@ -52,8 +52,20 @@ app.use("", require('./routes/customerRoutes'));
 app.use("/api/migration", require('./routes/migrationRoutes'));
 app.use("/api/tenant-admin", require('./routes/tenantAdmin'));
 app.use("/api/super-admin", require('./routes/superAdmin'));
+app.use("/api/tenant", require('./routes/tenantRoutes'));
 // Landing routes removed
 app.use("/debug", require('./routes/debug'));
+app.use("/tenant-debug", require('./routes/tenant-debug'));
+
+// API-specific 404 handler - ensures all API routes return JSON
+app.use('/api', (req, res) => {
+  res.status(404).json({ 
+    status: false, 
+    message: 'API route not found',
+    path: req.originalUrl
+  });
+});
+
 app.use(express.json());
 const path = require('path');
 

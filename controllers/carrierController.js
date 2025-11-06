@@ -4,6 +4,7 @@ const Carrier = require("../db/Carrier");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
 const axios = require("axios");
+const { checkCarrierLimit } = require("../middlewares/planLimitsMiddleware");
 
 exports.addCarrier = catchAsync(async (req, res, next) => {
   const { name, phone, email, emails, location, country, state, city, zipcode, secondary_email, secondary_phone, mc_code } = req.body;

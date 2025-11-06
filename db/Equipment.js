@@ -17,6 +17,9 @@ const schema = new mongoose.Schema({
    },
 });
 
+// Compound unique index for tenant-name combination
+schema.index({ tenantId: 1, name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
+
 const Equipment = mongoose.model('equipment', schema);
 module.exports = Equipment;
 

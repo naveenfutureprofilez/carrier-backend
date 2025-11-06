@@ -132,7 +132,9 @@ const createTenant = catchAsync(async (req, res, next) => {
     name,
     subdomain,
     contactInfo,
-    subscription,
+    subscriptionPlanId, // New format
+    subscription, // Old format (for backward compatibility)
+    billingCycle = 'monthly',
     settings
   } = req.body;
 
@@ -147,39 +149,121 @@ const createTenant = catchAsync(async (req, res, next) => {
     return next(new AppError('Subdomain already exists', 400));
   }
 
-  // Generate unique tenant ID
-  const tenantId = `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  // Debug: Log the incoming request data
+  console.log('🔍 DEBUG - Incoming request body:', JSON.stringify(req.body, null, 2));
+  
+  // Handle subscription plan - support both old and new formats
+  let subscriptionPlan = null;
+  let subscriptionData = {};
+  
+  if (subscriptionPlanId) {
+    // New format - using subscription plan ID
+    subscriptionPlan = await SubscriptionPlan.findById(subscriptionPlanId);
+    if (!subscriptionPlan || !subscriptionPlan.isActive) {
+      return next(new AppError('Invalid or inactive subscription plan', 400));
+    }
+    
+    subscriptionData = {
+      plan: subscriptionPlan._id, // ObjectId
+      planSlug: subscriptionPlan.slug,
+      status: 'active',
+      startDate: new Date(),
+      billingCycle: billingCycle,
+      planLimits: {
+        maxUsers: subscriptionPlan.limits.maxUsers,
+        maxOrders: subscriptionPlan.limits.maxOrders,
+        maxCustomers: subscriptionPlan.limits.maxCustomers,
+        maxCarriers: subscriptionPlan.limits.maxCarriers
+      },
+      planFeatures: subscriptionPlan.features
+    };
+  } else if (subscription?.plan) {
+    // Old format - using string plan name (now supported by Mixed type)
+    subscriptionData = {
+      plan: subscription.plan, // String (now allowed by Mixed type)
+      legacyPlan: subscription.plan, // Also store in legacy field
+      status: subscription.status || 'active',
+      startDate: new Date(),
+      billingCycle: subscription.billingCycle || billingCycle,
+      planLimits: {
+        maxUsers: settings?.maxUsers || 10,
+        maxOrders: settings?.maxOrders || 1000,
+        maxCustomers: settings?.maxCustomers || 1000,
+        maxCarriers: settings?.maxCarriers || 500
+      },
+      planFeatures: settings?.features || ['orders', 'customers', 'carriers', 'basic_reporting']
+    };
+  } else {
+    // Default fallback
+    subscriptionData = {
+      plan: 'basic', // String default
+      legacyPlan: 'basic',
+      status: 'active',
+      startDate: new Date(),
+      billingCycle: billingCycle,
+      planLimits: {
+        maxUsers: 10,
+        maxOrders: 1000,
+        maxCustomers: 1000,
+        maxCarriers: 500
+      },
+      planFeatures: ['orders', 'customers', 'carriers', 'basic_reporting']
+    };
+  }
 
-  // Create tenant
-  const tenant = await Tenant.create({
+  // Generate tenant ID based on subdomain (domain-based naming)
+  const tenantId = subdomain;
+
+  // Debug: Log the subscription data being used
+  console.log('🔍 DEBUG - Subscription data being used:', JSON.stringify(subscriptionData, null, 2));
+  
+  // Create tenant with subscription data (supports both old and new formats)
+  const tenantCreateData = {
     tenantId,
     name,
     domain: process.env.DOMAIN || 'yourapp.com',
     subdomain,
     status: 'active',
     contactInfo,
-    subscription: {
-      plan: subscription?.plan || 'basic',
-      status: 'active',
-      startDate: new Date(),
-      billingCycle: subscription?.billingCycle || 'monthly'
-    },
+    subscription: subscriptionData,
     settings: {
-      maxUsers: settings?.maxUsers || 10,
-      maxOrders: settings?.maxOrders || 500,
-      features: settings?.features || ['orders', 'customers', 'carriers'],
-      ...settings
+      maxUsers: subscriptionData.planLimits.maxUsers,
+      maxOrders: subscriptionData.planLimits.maxOrders,
+      maxStorage: settings?.maxStorage || '1GB',
+      features: subscriptionData.planFeatures,
+      customizations: settings?.customizations || {}
     },
     createdBy: req.user._id
-  });
+  };
+  
+  console.log('🔍 DEBUG - Final tenant data:', JSON.stringify(tenantCreateData, null, 2));
+  
+  const tenant = await Tenant.create(tenantCreateData);
 
-  // Create company record for the tenant
+  // Create company record for the tenant with comprehensive default values
   const company = await Company.create({
     tenantId,
-    name,
+    company_slug: tenantId,
+    logo: '', // Empty, to be filled later by tenant admin
+    name: name, // Use tenant name as initial company name
     email: contactInfo.adminEmail,
-    phone: contactInfo.phone || '',
-    address: contactInfo.address || ''
+    phone: contactInfo.phone || '[To be updated]',
+    address: contactInfo.address || '[To be updated]',
+    bank_name: '[To be updated]',
+    account_name: '[To be updated]', 
+    account_number: '[To be updated]',
+    routing_number: '[To be updated]',
+    remittance_primary_email: contactInfo.adminEmail,
+    remittance_secondary_email: null,
+    rate_confirmation_terms: `Carrier is responsible to confirm the actual weight and count received from the shipper before transit.
+
+Additional fees such as loading/unloading, pallet exchange, etc., are included in the agreed rate.
+
+POD must be submitted within 5 days of delivery.
+
+Freight charges include $100 for MacroPoint tracking. Non-compliance may lead to deduction.
+
+Cross-border shipments require custom stamps or deductions may apply.`
   });
 
   // Send invitation email to tenant admin (implement email service)
@@ -341,8 +425,16 @@ const inviteTenantAdmin = catchAsync(async (req, res, next) => {
  * Get subscription plans
  */
 const getSubscriptionPlans = catchAsync(async (req, res, next) => {
-  const plans = await SubscriptionPlan.find({ isActive: true })
-    .sort({ priority: -1, price: 1 });
+  const { publicOnly = false } = req.query;
+  
+  const filter = { isActive: true };
+  if (publicOnly === 'true') {
+    filter.isPublic = true;
+  }
+  
+  const plans = await SubscriptionPlan.find(filter)
+    .select('name slug description limits features isPublic')
+    .sort({ name: 1 });
 
   res.json({
     status: true,
@@ -534,6 +626,172 @@ const deleteSuperAdmin = catchAsync(async (req, res, next) => {
   });
 });
 
+/**
+ * Ensure company record exists for tenant
+ * This is a utility function to create missing company records for existing tenants
+ */
+const ensureCompanyRecord = catchAsync(async (req, res, next) => {
+  const { tenantId } = req.params;
+  
+  // Check if company already exists
+  const existingCompany = await Company.findOne({ tenantId });
+  if (existingCompany) {
+    return res.json({
+      status: true,
+      message: 'Company record already exists',
+      data: { company: existingCompany }
+    });
+  }
+  
+  // Get tenant details
+  const tenant = await Tenant.findOne({ tenantId });
+  if (!tenant) {
+    return next(new AppError('Tenant not found', 404));
+  }
+  
+  // Create company record with default values
+  const company = await Company.create({
+    tenantId,
+    company_slug: tenantId,
+    logo: '',
+    name: tenant.name,
+    email: tenant.contactInfo.adminEmail,
+    phone: tenant.contactInfo.phone || '[To be updated]',
+    address: tenant.contactInfo.address || '[To be updated]',
+    bank_name: '[To be updated]',
+    account_name: '[To be updated]',
+    account_number: '[To be updated]',
+    routing_number: '[To be updated]',
+    remittance_primary_email: tenant.contactInfo.adminEmail,
+    remittance_secondary_email: null,
+    rate_confirmation_terms: `Carrier is responsible to confirm the actual weight and count received from the shipper before transit.\n\nAdditional fees such as loading/unloading, pallet exchange, etc., are included in the agreed rate.\n\nPOD must be submitted within 5 days of delivery.\n\nFreight charges include $100 for MacroPoint tracking. Non-compliance may lead to deduction.\n\nCross-border shipments require custom stamps or deductions may apply.`
+  });
+  
+  res.status(201).json({
+    status: true,
+    message: 'Company record created successfully',
+    data: { company }
+  });
+});
+
+/**
+ * Update tenant subscription plan (Super Admin only)
+ */
+const updateTenantSubscriptionPlan = catchAsync(async (req, res, next) => {
+  const { tenantId } = req.params;
+  const { subscriptionPlanId, billingCycle = 'monthly' } = req.body;
+  
+  if (!subscriptionPlanId) {
+    return next(new AppError('Subscription plan ID is required', 400));
+  }
+  
+  // Get the tenant
+  const tenant = await Tenant.findOne({ tenantId });
+  if (!tenant) {
+    return next(new AppError('Tenant not found', 404));
+  }
+  
+  // Get and validate the subscription plan
+  const subscriptionPlan = await SubscriptionPlan.findById(subscriptionPlanId);
+  if (!subscriptionPlan || !subscriptionPlan.isActive) {
+    return next(new AppError('Invalid or inactive subscription plan', 400));
+  }
+  
+  // Update the tenant's subscription
+  const updatedTenant = await Tenant.findOneAndUpdate(
+    { tenantId },
+    {
+      $set: {
+        'subscription.plan': subscriptionPlan._id,
+        'subscription.planSlug': subscriptionPlan.slug,
+        'subscription.billingCycle': billingCycle,
+        'subscription.planLimits': {
+          maxUsers: subscriptionPlan.limits.maxUsers,
+          maxOrders: subscriptionPlan.limits.maxOrders,
+          maxCustomers: subscriptionPlan.limits.maxCustomers,
+          maxCarriers: subscriptionPlan.limits.maxCarriers
+        },
+        'subscription.planFeatures': subscriptionPlan.features,
+        'subscription.status': 'active',
+        'settings.maxUsers': subscriptionPlan.limits.maxUsers,
+        'settings.maxOrders': subscriptionPlan.limits.maxOrders,
+        'settings.features': subscriptionPlan.features,
+        'updatedAt': new Date()
+      }
+    },
+    { new: true, runValidators: true }
+  ).populate('subscription.plan');
+  
+  res.json({
+    status: true,
+    data: {
+      tenant: updatedTenant,
+      message: `Tenant subscription updated to ${subscriptionPlan.name} plan successfully`
+    }
+  });
+});
+
+/**
+ * Get tenant subscription details (Super Admin view)
+ */
+const getTenantSubscriptionDetails = catchAsync(async (req, res, next) => {
+  const { tenantId } = req.params;
+  
+  const tenant = await Tenant.findOne({ tenantId }).populate('subscription.plan');
+  if (!tenant) {
+    return next(new AppError('Tenant not found', 404));
+  }
+  
+  // Get all available subscription plans
+  const availablePlans = await SubscriptionPlan.find({ isActive: true })
+    .select('_id name slug description limits features')
+    .sort({ name: 1 });
+  
+  // Get current usage
+  const usage = {
+    users: await User.countDocuments({ tenantId }),
+    orders: await Order.countDocuments({ tenantId }),
+    customers: await Customer.countDocuments({ tenantId }),
+    carriers: await Carrier.countDocuments({ tenantId })
+  };
+  
+  // Get subscription plan details
+  let subscriptionPlan = null;
+  if (tenant.subscription.plan) {
+    if (typeof tenant.subscription.plan === 'string') {
+      subscriptionPlan = await SubscriptionPlan.findOne({
+        $or: [
+          { slug: tenant.subscription.plan },
+          { name: { $regex: tenant.subscription.plan, $options: 'i' } }
+        ]
+      });
+    } else {
+      subscriptionPlan = tenant.subscription.plan;
+    }
+  }
+  
+  res.json({
+    status: true,
+    data: {
+      tenant: {
+        tenantId: tenant.tenantId,
+        name: tenant.name,
+        status: tenant.status
+      },
+      currentSubscription: {
+        planName: subscriptionPlan?.name || tenant.subscription.legacyPlan || 'Unknown',
+        planSlug: subscriptionPlan?.slug || tenant.subscription.planSlug,
+        status: tenant.subscription.status,
+        billingCycle: tenant.subscription.billingCycle,
+        limits: subscriptionPlan?.limits || tenant.subscription.planLimits,
+        features: subscriptionPlan?.features || tenant.subscription.planFeatures || []
+      },
+      usage,
+      availablePlans
+    }
+  });
+});
+
 module.exports = {
   getTenants,
   getTenantDetails,
@@ -552,5 +810,8 @@ module.exports = {
   getSuperAdmins,
   createSuperAdmin,
   updateSuperAdmin,
-  deleteSuperAdmin
+  deleteSuperAdmin,
+  ensureCompanyRecord,
+  updateTenantSubscriptionPlan,
+  getTenantSubscriptionDetails
 };
