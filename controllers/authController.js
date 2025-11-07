@@ -4,6 +4,7 @@ const catchAsync = require("../utils/catchAsync");
 const {promisify} = require("util");
 const AppError = require("../utils/AppError");
 const SendEmail = require("../utils/Email");
+
 const crypto = require("crypto");
 const JSONerror = require("../utils/jsonErrorHandler");
 const logger = require("../utils/logger");
@@ -77,33 +78,69 @@ const editUser = catchAsync(async (req, res, next) => {
       message : "You are not authorized to access this route."
     });
   }
-  const existedUser = await User.findById(req.params.id);
-  if(req.body.email !== existedUser?.email){
-    res.json({
+
+  // Prevent client from setting tenantId
+  if ('tenantId' in req.body) {
+    delete req.body.tenantId;
+  }
+
+  // Get tenant context
+  const tenantIdFromContext = req.tenantId || req.user?.tenantId;
+  
+  // Find user within tenant context - include inactive users
+  const filter = { _id: req.params.id };
+  if (tenantIdFromContext) {
+    filter.tenantId = tenantIdFromContext;
+  }
+  
+  const existedUser = await User.findOne(filter, null, { includeInactive: true });
+  
+  if (!existedUser) {
+    return res.json({
       status : false,
-      message : "Your given email address is already used."
+      message : "User not found or access denied."
     });
+  }
+  
+  if(req.body.email !== existedUser?.email){
+    // Check if new email is already in use within tenant
+    const emailExists = await User.findOne({ 
+      email: req.body.email, 
+      tenantId: tenantIdFromContext,
+      _id: { $ne: req.params.id }
+    }, null, { includeInactive: true });
+    
+    if (emailExists) {
+      return res.json({
+        status : false,
+        message : "Your given email address is already used."
+      });
+    }
   } 
-  User.findByIdAndUpdate(req.params.id, {
-    name: req.body.name,
-    email: req.body.email, 
-    staff_commision : req.body.role === 1 ? req.body.staff_commision : null,
-    country: req.body.country,
-    phone: req.body.phone,
-    position: req.body.position,
-    address: req.body.address,
-    role: req.body.role,
-  }).then(result => {
+  
+  try {
+    const result = await User.findByIdAndUpdate(req.params.id, {
+      name: req.body.name,
+      email: req.body.email, 
+      staff_commision : req.body.role === 1 ? req.body.staff_commision : null,
+      country: req.body.country,
+      phone: req.body.phone,
+      position: req.body.position,
+      address: req.body.address,
+      role: req.body.role,
+      // tenantId is intentionally NOT included - cannot be changed after creation
+    }, { new: true, includeInactive: true });
+    
     result.password = undefined;
     res.send({
       status: true,
       user: result,
       message: "User has been updated.",
     });
-  }).catch(err => {
+  } catch (err) {
     JSONerror(res, err, next);
     logger(err);
-  });
+  }
 });
 
 const suspandUser = catchAsync(async (req, res, next) => {
@@ -113,24 +150,61 @@ const suspandUser = catchAsync(async (req, res, next) => {
       message : "You are not authorized to access this route."
     });
   }
-  const existedUser = await User.findById(req.params.id);
-  User.findByIdAndUpdate(req.params.id, {
-    status: existedUser.status === 'active' ? 'inactive' : "active", 
-  }).then(result => {
-    result.password = undefined;
+  
+  // Get tenant context for security
+  const tenantIdFromContext = req.tenantId || req.user?.tenantId;
+  
+  // Build filter with tenant context
+  const filter = { _id: req.params.id };
+  if (tenantIdFromContext) {
+    filter.tenantId = tenantIdFromContext;
+  }
+  
+  // Include inactive users in the search
+  const existedUser = await User.findOne(filter, null, { includeInactive: true });
+  
+  if (!existedUser) {
+    return res.json({
+      status: false,
+      message: "User not found or access denied."
+    });
+  }
+  
+  const newStatus = existedUser.status === 'active' ? 'inactive' : 'active';
+  const actionMessage = existedUser.status === 'active' ? 'suspended' : 'reactivated';
+  
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id, 
+      { status: newStatus },
+      { new: true, includeInactive: true }
+    );
+    
+    if (updatedUser) {
+      updatedUser.password = undefined;
+    }
+    
     res.send({
       status: true,
-      user: result,
-      message: `User account has been ${existedUser.status === 'active' ? 'suspended' : "reactivated."}`,
+      user: updatedUser,
+      message: `User account has been ${actionMessage}.`,
     });
-  }).catch(err => {
+  } catch (err) {
     JSONerror(res, err, next);
     logger(err);
-  });
+  }
 });
 
 const signup = catchAsync(async (req, res, next) => {
-  const { role, name, email, avatar, password, generateAutoPassword, staff_commision, position } = req.body;
+  // Extract fields and explicitly exclude tenantId from body
+  const { role, name, email, avatar, password, generateAutoPassword, staff_commision, position, country, phone, address } = req.body;
+  
+  // Prevent client from setting tenantId
+  if ('tenantId' in req.body) {
+    delete req.body.tenantId;
+  }
+  
+  // Authorization check
   if(req.user && req.user.is_admin !== 1){
     return res.json({
       status : false,
@@ -138,46 +212,85 @@ const signup = catchAsync(async (req, res, next) => {
     });
   }
 
-  const isEmailUsed = await User.findOne({email : email});
+  // Get tenant context from authenticated user
+  const creator = req.user;
+  const tenantIdFromContext = req.tenantId || (creator && creator.tenantId);
+
+  // Debug logging for development
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🔧 signup tenant context:', {
+      userId: creator?._id?.toString(),
+      userEmail: creator?.email,
+      reqTenantId: req.tenantId,
+      userTenantId: creator?.tenantId,
+      tenantIdFromContext
+    });
+  }
+
+  // Require tenant context
+  if (!tenantIdFromContext) {
+    return res.status(400).json({
+      status: false,
+      message: "Tenant context is required to create an employee"
+    });
+  }
+
+  // Check if email is already used within the same tenant
+  const isEmailUsed = await User.findOne({ email: email, tenantId: tenantIdFromContext }, null, { includeInactive: true });
   let generatedPassword = password || '';
   if(generateAutoPassword === 1){
     generatedPassword = crypto.randomBytes(10).toString('hex');
   }
 
   if(isEmailUsed){
-    res.json({
+    return res.json({
       status : false,
       message : "Your given email address is already used."
     });
   }
 
+  // Generate unique corporate ID
   let corporateID;
   let isUnique = false;
   while (!isUnique) {
     corporateID = `CCID${Math.floor(100000 + Math.random() * 900000)}`;
-    const existingUser = await User.findOne({ corporateID });
+    const existingUser = await User.findOne({ corporateID }, null, { includeInactive: true });
     if (!existingUser) {
       isUnique = true;
     }
   }
 
   await User.syncIndexes();
-  User.create({
-    name: name,
-    email: email, 
-    staff_commision : role === 1 ? staff_commision : null,
-    avatar: avatar || '',
-    corporateID: corporateID,
-    created_by:req.user && req.user._id,
-    password: generatedPassword,
-    country: req.body.country,
-    phone: req.body.phone,
-    address: req.body.address,
-    role: role,
-    company:req.user && req.user.company ? req.user.company._id : null,
-    position:position,
-    confirmPassword: generatedPassword,
-  }).then(result => {
+  
+  try {
+    const result = await User.create({
+      name: name,
+      email: email, 
+      staff_commision : role === 1 ? staff_commision : null,
+      avatar: avatar || '',
+      corporateID: corporateID,
+      created_by: creator && creator._id,
+      password: generatedPassword,
+      country: country,
+      phone: phone,
+      address: address,
+      role: role,
+      company: creator && creator.company ? creator.company._id : null,
+      position: position,
+      confirmPassword: generatedPassword,
+      tenantId: tenantIdFromContext // Explicitly set tenant ID from context
+    });
+    
+    // Debug logging for development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ User created successfully:', {
+        userId: result._id?.toString(),
+        email: result.email,
+        tenantId: result.tenantId,
+        createdBy: result.created_by?.toString()
+      });
+    }
+    
     result.password = undefined;
     res.send({
       status: true,
@@ -191,10 +304,10 @@ const signup = catchAsync(async (req, res, next) => {
       user: result,
       message: "User has been created.",
     });
-  }).catch(err => {
+  } catch (err) {
     JSONerror(res, err, next);
     logger(err);
-  });
+  }
 });
  
 const login = catchAsync ( async (req, res, next) => { 
@@ -327,30 +440,64 @@ const employeesLisiting = catchAsync ( async (req, res) => {
     });
   }
   
-  // Use raw collection query to bypass middleware and include ALL users (active + inactive)
-  const mongoose = require('mongoose');
-  const db = mongoose.connection.db;
-  const usersCollection = db.collection('users');
+  // Build filter using tenant context and exclude admins
+  const baseFilter = { 
+    tenantId: tenantId,
+    is_admin: { $ne: 1 } // Exclude admin users from employee listing
+  };
   
-  const rawUsers = await usersCollection.find({ tenantId }).toArray();
-  const totalDocuments = rawUsers.length;
+  // If dbFilter from tenantDataFilter middleware exists, merge it
+  if (req.dbFilter) {
+    Object.assign(baseFilter, req.dbFilter);
+  }
   
-  // Convert raw documents to match expected format
-  const lists = rawUsers.map(user => ({
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    status: user.status,
-    role: user.role,
-    tenantId: user.tenantId,
-    createdAt: user.createdAt
-  }));
+  // Debug logging for development
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🔍 employeesListing context:', {
+      userId: req.user?._id?.toString(),
+      userEmail: req.user?.email,
+      reqTenantId: req.tenantId,
+      userTenantId: req.user?.tenantId,
+      finalTenantId: tenantId,
+      filter: JSON.stringify(baseFilter)
+    });
+  }
   
-  res.status(200).json({
-    status: true,
-    lists: lists,
-    totalDocuments: totalDocuments
-  });
+  try {
+    // Use Mongoose query with proper filtering - include inactive users
+    const employees = await User.find(baseFilter, null, { includeInactive: true })
+      .select('name email status role tenantId createdAt position phone country address corporateID created_by')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    const totalDocuments = employees.length;
+    
+    // Debug logging for development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`✅ Found ${totalDocuments} employees for tenant "${tenantId}"`);
+      if (employees.length > 0) {
+        console.log('First few employees:', employees.slice(0, 3).map(emp => ({ 
+          name: emp.name, 
+          email: emp.email, 
+          tenantId: emp.tenantId 
+        })));
+      }
+    }
+    
+    res.status(200).json({
+      status: true,
+      lists: employees,
+      totalDocuments: totalDocuments
+    });
+  } catch (error) {
+    console.error('Error in employeesListing:', error);
+    res.status(500).json({
+      status: false,
+      message: "Failed to fetch employees",
+      lists: [],
+      totalDocuments: 0
+    });
+  }
 });
 
 const employeeDetail = catchAsync ( async (req, res) => {
@@ -372,7 +519,7 @@ const employeeDetail = catchAsync ( async (req, res) => {
       employee: null
     });
   }
-  const employee = await User.findById(employeeId).populate('company');
+  const employee = await User.findById(employeeId, null, { includeInactive: true }).populate('company');
   
   if (!employee) {
     return res.status(404).json({
@@ -423,7 +570,7 @@ const employeesDocs = catchAsync ( async (req, res) => {
 });
 
 const forgotPassword = catchAsync ( async (req, res, next) => {
-  const user = await User.findOne({email:req.body.email});
+  const user = await User.findOne({email:req.body.email}, null, { includeInactive: true });
   if(!user){
     res.json({
       status:false,

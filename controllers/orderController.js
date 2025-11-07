@@ -210,20 +210,57 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       queryObj.customer_payment_status = paymentStatus;
    }
    
+   // Sanitize and validate customer_id
    if(customer_id){
-      queryObj.customer = customer_id;
+      const sanitizedCustomerId = customer_id.trim();
+      if (sanitizedCustomerId) {
+         const mongoose = require('mongoose');
+         if (mongoose.Types.ObjectId.isValid(sanitizedCustomerId)) {
+            queryObj.customer = sanitizedCustomerId;
+         } else {
+            // Invalid ObjectId, return empty results
+            return res.json({
+               status: true,
+               orders: [],
+               page: 1,
+               totalPages: 0,
+               message: "No orders found"
+            });
+         }
+      }
    }
 
+   // Sanitize and validate carrier_id
    if(carrier_id){
-      queryObj.carrier = carrier_id;
+      const sanitizedCarrierId = carrier_id.trim();
+      if (sanitizedCarrierId) {
+         const mongoose = require('mongoose');
+         if (mongoose.Types.ObjectId.isValid(sanitizedCarrierId)) {
+            queryObj.carrier = sanitizedCarrierId;
+         } else {
+            // Invalid ObjectId, return empty results
+            return res.json({
+               status: true,
+               orders: [],
+               page: 1,
+               totalPages: 0,
+               message: "No orders found"
+            });
+         }
+      }
    }
+   
    if(status == 'added' || status == 'intransit' || status == 'completed'){
       queryObj.order_status = status;
    }
 
-   // Apply created_by filter only for regular users (role === 1)
-   if (req.user && req.user.role === 1) {
+   // Apply created_by filter only for staff users (role === 1) - use strict numeric check
+   if (req.user && Number(req.user.role) === 1) {
       queryObj.created_by = req.user._id;
+      // Debug logging in non-production
+      if (process.env.NODE_ENV !== 'production') {
+         console.log('Staff user filter applied:', { userId: req.user._id, role: req.user.role, query: queryObj });
+      }
    }
 
    if (search && search.length >1) {
@@ -855,15 +892,71 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
       $or: [{ deletedAt: null }]
    };
 
+   // Scope by tenant when available (including emulation)
    if (req.tenantId) {
       queryObj.tenantId = req.tenantId;
    }
 
+   // Sanitize and validate customer_id
    if(customer_id){
-      queryObj.customer = customer_id;
+      const sanitizedCustomerId = customer_id.trim();
+      if (sanitizedCustomerId) {
+         const mongoose = require('mongoose');
+         if (mongoose.Types.ObjectId.isValid(sanitizedCustomerId)) {
+            queryObj.customer = sanitizedCustomerId;
+         } else {
+            // Invalid ObjectId, return empty results
+            return res.json({
+               status: true,
+               orders: [],
+               page: 1,
+               totalPages: 0,
+               message: "No orders found"
+            });
+         }
+      }
    }
+
+   // Sanitize and validate carrier_id
    if(carrier_id){
-      queryObj.carrier = carrier_id;
+      const sanitizedCarrierId = carrier_id.trim();
+      if (sanitizedCarrierId) {
+         const mongoose = require('mongoose');
+         if (mongoose.Types.ObjectId.isValid(sanitizedCarrierId)) {
+            queryObj.carrier = sanitizedCarrierId;
+         } else {
+            // Invalid ObjectId, return empty results
+            return res.json({
+               status: true,
+               orders: [],
+               page: 1,
+               totalPages: 0,
+               message: "No orders found"
+            });
+         }
+      }
+   }
+
+   // Apply created_by filter only for staff users (role === 1) - use strict numeric check
+   if (req.user && Number(req.user.role) === 1) {
+      queryObj.created_by = req.user._id;
+      // Debug logging in non-production
+      if (process.env.NODE_ENV !== 'production') {
+         console.log('Staff user payments filter applied:', { userId: req.user._id, role: req.user.role, query: queryObj });
+      }
+   }
+
+   // Sanitize search parameter
+   if (search && search.length > 1) {
+      const searchValue = search.trim();
+      // Check if search is a number for serial_no search
+      if (!isNaN(searchValue)) {
+         queryObj.serial_no = parseInt(searchValue);
+      } else {
+         // For non-numeric searches, you might want to search in other fields
+         // Currently keeping empty to only search serial numbers
+         queryObj.serial_no = -1; // This will not match any valid serial_no
+      }
    }
 
    // Set default sort to serial_no descending if not provided

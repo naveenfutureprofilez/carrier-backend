@@ -512,16 +512,47 @@ const stopEmulation = catchAsync(async (req, res, next) => {
   
   // Validate that user is currently emulating or is a super admin
   const isSuperAdmin = req.isSuperAdminUser || req.superAdmin;
-  const isEmulating = req.isEmulating; // This comes from token validation
   
   console.log('✅ isSuperAdmin:', isSuperAdmin);
-  console.log('✅ isEmulating (from token):', isEmulating);
+  console.log('✅ req.isEmulating:', req.isEmulating);
   console.log('✅ req.tenantId:', req.tenantId);
   
   if (!isSuperAdmin) {
     console.log('❌ Validation failed: Not a super admin');
     return next(new AppError('Super admin access required', 403));
   }
+  
+  // Additional check: Look for emulation context in token if req.isEmulating is not set
+  let isEmulating = req.isEmulating;
+  
+  if (!isEmulating) {
+    // Try to extract emulation context from token directly
+    let token = null;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies.jwt) {
+      token = req.cookies.jwt;
+    }
+    
+    if (token) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.decode(token);
+        if (decoded && decoded.isEmulating) {
+          isEmulating = true;
+          // Set the emulation context if not already set
+          req.isEmulating = true;
+          if (decoded.emulatedTenantId && !req.tenantId) {
+            req.tenantId = decoded.emulatedTenantId;
+          }
+        }
+      } catch (error) {
+        console.log('❌ Token decode error:', error.message);
+      }
+    }
+  }
+  
+  console.log('✅ Final isEmulating check:', isEmulating);
   
   if (!isEmulating) {
     console.log('❌ Validation failed: Not currently emulating');

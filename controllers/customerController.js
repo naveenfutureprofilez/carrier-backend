@@ -134,18 +134,24 @@ exports.customers_listing = catchAsync(async (req, res) => {
 exports.customerDetails = catchAsync(async (req, res, next) => {
   const criteria = { _id: req.params.id };
   if (req.tenantId) criteria.tenantId = req.tenantId;
+  
+  // Add access control - non-admin staff can only view customers assigned to them
+  if (req.user && !(req.user.is_admin === 1 && req.user.role === 3)) {
+    criteria.assigned_to = req.user._id;
+  }
+  
   const customer = await Customer.findOne(criteria).populate('assigned_to');
   if(!customer){ 
     res.send({
       status: false,
       result : null,
-      message: "Customer not found",
+      message: "Customer not found or not authorized",
     });
   } 
   res.send({
     status: true,
     result : customer,
-    message: "Customer has been updated.",
+    message: "Customer details retrieved.",
   });
 });
 

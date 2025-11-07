@@ -133,6 +133,15 @@ const requireSuperAdmin = catchAsync(async (req, res, next) => {
       if (decoded.isSuperAdmin || decoded.isEmulating || decoded.originalUserId) {
         console.log('✅ Token has super admin/emulation privileges');
         req.isSuperAdminUser = true;
+        
+        // Set emulation context if token indicates emulation
+        if (decoded.isEmulating) {
+          req.isEmulating = true;
+          if (decoded.emulatedTenantId) {
+            req.tenantId = decoded.emulatedTenantId;
+          }
+        }
+        
         return next();
       } else {
         console.log('⚠️ Token does not have required privileges');
