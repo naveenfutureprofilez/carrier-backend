@@ -462,15 +462,20 @@ const createTenant = catchAsync(async (req, res, next) => {
   });
 
   // Create admin user
-  const tempPassword = Math.random().toString(36).substring(2, 15);
-  const hashedPassword = await bcrypt.hash(tempPassword, 12);
-
+  const providedPassword = req.body?.adminPassword;
+  const defaultDevPassword = process.env.DEFAULT_ADMIN_PASSWORD || '12345678';
+  const isProd = (process.env.NODE_ENV === 'production');
+  const tempPassword = providedPassword && typeof providedPassword === 'string' && providedPassword.length >= 6
+    ? providedPassword
+    : (isProd ? Math.random().toString(36).substring(2, 15) : defaultDevPassword);
+  
+  // Note: Don't manually hash password - User model pre-save hook will handle this
   const adminUser = await User.create({
     tenantId,
     company: company._id,
     name: adminName,
     email: adminEmail,
-    password: hashedPassword,
+    password: tempPassword, // Plain password - will be hashed by User model pre-save hook
     phone: adminPhone,
     country: 'USA',
     address: (companyInfo && companyInfo.address) ? companyInfo.address : 'N/A',
@@ -489,7 +494,7 @@ const createTenant = catchAsync(async (req, res, next) => {
       tenant,
       company,
       adminUser,
-      tempPassword // In production, send this via email
+      tempPassword: isProd ? undefined : tempPassword
     },
     message: 'Tenant created successfully'
   });

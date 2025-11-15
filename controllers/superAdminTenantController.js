@@ -126,6 +126,23 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
 
 /**
  * Create new tenant
+ * 
+ * @route POST /api/super-admin/tenants
+ * @access SuperAdmin
+ * @returns {
+ *   status: boolean,
+ *   data: {
+ *     tenant: Object,
+ *     company: Object,
+ *     adminUser: Object (sanitized),
+ *     credentials: { email: string, password: string, url: string },
+ *     tempPassword: string (backward compatibility)
+ *   },
+ *   message: string
+ * }
+ * @description Creates a new tenant with auto-generated admin credentials.
+ * The credentials object contains email, password, and URL for immediate sharing.
+ * The password is only returned once and should be stored securely.
  */
 const createTenant = catchAsync(async (req, res, next) => {
   const {
@@ -238,24 +255,43 @@ const createTenant = catchAsync(async (req, res, next) => {
   
   console.log('🔍 DEBUG - Final tenant data:', JSON.stringify(tenantCreateData, null, 2));
   
-  const tenant = await Tenant.create(tenantCreateData);
+  // Check for existing email before creating tenant
+  const existingUser = await User.findOne({ email: contactInfo.adminEmail });
+  if (existingUser) {
+    return next(new AppError(`Email address '${contactInfo.adminEmail}' is already in use. Please use a different email address.`, 409));
+  }
 
-  // Create company record for the tenant with comprehensive default values
-  const company = await Company.create({
-    tenantId,
-    company_slug: tenantId,
-    logo: '', // Empty, to be filled later by tenant admin
-    name: name, // Use tenant name as initial company name
-    email: contactInfo.adminEmail,
-    phone: contactInfo.phone || '[To be updated]',
-    address: contactInfo.address || '[To be updated]',
-    bank_name: '[To be updated]',
-    account_name: '[To be updated]', 
-    account_number: '[To be updated]',
-    routing_number: '[To be updated]',
-    remittance_primary_email: contactInfo.adminEmail,
-    remittance_secondary_email: null,
-    rate_confirmation_terms: `Carrier is responsible to confirm the actual weight and count received from the shipper before transit.
+  let tenant, company, adminUser;
+  
+  // Generate admin password outside try block so it's accessible later
+  const isProd = (process.env.NODE_ENV === 'production');
+  const providedPassword = req.body?.adminPassword || req.body?.contactInfo?.adminPassword;
+  const defaultDevPassword = process.env.DEFAULT_ADMIN_PASSWORD || '12345678';
+  const adminPassword = providedPassword && typeof providedPassword === 'string' && providedPassword.length >= 6
+    ? providedPassword
+    : (isProd ? Math.random().toString(36).substring(2, 15) : defaultDevPassword);
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
+  
+  try {
+    // Create tenant first
+    tenant = await Tenant.create(tenantCreateData);
+
+    // Create company record for the tenant with comprehensive default values
+    company = await Company.create({
+      tenantId,
+      company_slug: tenantId,
+      logo: '', // Empty, to be filled later by tenant admin
+      name: name, // Use tenant name as initial company name
+      email: contactInfo.adminEmail,
+      phone: contactInfo.phone || '[To be updated]',
+      address: contactInfo.address || '[To be updated]',
+      bank_name: '[To be updated]',
+      account_name: '[To be updated]', 
+      account_number: '[To be updated]',
+      routing_number: '[To be updated]',
+      remittance_primary_email: contactInfo.adminEmail,
+      remittance_secondary_email: null,
+      rate_confirmation_terms: `Carrier is responsible to confirm the actual weight and count received from the shipper before transit.
 
 Additional fees such as loading/unloading, pallet exchange, etc., are included in the agreed rate.
 
@@ -264,10 +300,53 @@ POD must be submitted within 5 days of delivery.
 Freight charges include $100 for MacroPoint tracking. Non-compliance may lead to deduction.
 
 Cross-border shipments require custom stamps or deductions may apply.`
-  });
+    });
 
-  // Send invitation email to tenant admin (implement email service)
-  // await sendTenantInvitationEmail(tenant, company);
+    // Create admin user
+    adminUser = await User.create({
+      tenantId,
+      company: company._id,
+      name: contactInfo.adminName || 'Administrator',
+      email: contactInfo.adminEmail,
+      password: hashedPassword,
+      phone: contactInfo.phone || '',
+      country: 'USA',
+      address: contactInfo.address || 'N/A',
+      role: 3,
+      position: 'Administrator',
+      corporateID: `ADMIN_${Date.now()}`
+    });
+  } catch (error) {
+    console.error('Error during tenant creation:', error);
+    
+    // Clean up any partially created records
+    if (tenant) {
+      try {
+        await Tenant.findByIdAndDelete(tenant._id);
+      } catch (deleteError) {
+        console.error('Error cleaning up tenant:', deleteError);
+      }
+    }
+    
+    if (company) {
+      try {
+        await Company.findByIdAndDelete(company._id);
+      } catch (deleteError) {
+        console.error('Error cleaning up company:', deleteError);
+      }
+    }
+    
+    // Let the global error handler transform MongoDB errors
+    // Just re-throw the original error
+    throw error;
+  }
+
+  // Create credentials object for frontend display
+  const credentials = {
+    email: contactInfo.adminEmail,
+    password: adminPassword,
+    url: generateTenantUrl(tenant.subdomain)
+  };
 
   res.status(201).json({
     status: true,
@@ -276,9 +355,18 @@ Cross-border shipments require custom stamps or deductions may apply.`
         ...tenant.toObject(),
         url: generateTenantUrl(tenant.subdomain)
       },
-      company
+      company,
+      adminUser: {
+        _id: adminUser._id,
+        name: adminUser.name,
+        email: adminUser.email,
+        role: adminUser.role,
+        tenantId: adminUser.tenantId
+      },
+      credentials,
+      tempPassword: adminPassword // Keep for backward compatibility
     },
-    message: 'Tenant created successfully. Invitation email will be sent to admin.'
+    message: 'Tenant created successfully.'
   });
 });
 
@@ -363,7 +451,7 @@ const deleteTenant = catchAsync(async (req, res, next) => {
  * Invite tenant admin
  */
 const inviteTenantAdmin = catchAsync(async (req, res, next) => {
-  const { email, name } = req.body;
+  const { email, name, password } = req.body;
   const tenant = await Tenant.findById(req.params.id);
   
   if (!tenant) {
@@ -371,7 +459,9 @@ const inviteTenantAdmin = catchAsync(async (req, res, next) => {
   }
 
   // Generate temporary password
-  const tempPassword = Math.random().toString(36).substring(2, 15);
+  const tempPassword = password && typeof password === 'string' && password.length >= 6
+    ? password
+    : Math.random().toString(36).substring(2, 15);
   const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
   // Create tenant admin user
@@ -407,7 +497,7 @@ const inviteTenantAdmin = catchAsync(async (req, res, next) => {
   // Send invitation email (implement email service)
   // await sendAdminInvitationEmail(adminUser, tenant, tempPassword);
 
-  res.json({
+  const responsePayload = {
     status: true,
     data: { 
       user: {
@@ -418,7 +508,14 @@ const inviteTenantAdmin = catchAsync(async (req, res, next) => {
       }
     },
     message: 'Admin user created and invitation sent'
-  });
+  };
+
+  // In non-production environments, include the temporary password for convenience
+  if (process.env.NODE_ENV !== 'production') {
+    responsePayload.data.tempPassword = tempPassword;
+  }
+
+  res.json(responsePayload);
 });
 
 /**

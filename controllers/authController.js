@@ -331,7 +331,7 @@ const login = catchAsync ( async (req, res, next) => {
     console.log("await bcrypt.compare(password", pp);
 
    if(!user || !(await bcrypt.compare(password, user.password))){
-    res.status(200).json({
+    return res.status(200).json({
       status : false, 
       message:"Details are invalid.",
      });   

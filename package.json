@@ -15,7 +15,8 @@
     "migrate-to-cross-miles": "node scripts/migrate-to-cross-miles.js",
     "fix-tenant-subdomain": "node scripts/fix-tenant-subdomain.js",
     "normalize-tenant-ids": "node scripts/normalize-tenant-ids.js",
-    "remove-superadmin-permissions": "node scripts/remove-superadmin-permissions.js"
+    "remove-superadmin-permissions": "node scripts/remove-superadmin-permissions.js",
+    "test-tenant-login": "node scripts/test-tenant-login.js"
   },
   "author": "",
   "license": "ISC",

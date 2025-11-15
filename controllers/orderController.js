@@ -281,7 +281,9 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       }
       
       let Query = new APIFeatures(
-         Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
+         Order.find(queryObj)
+            .populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by'])
+            .populate('documents_count'),
          req.query
       ).sort();
 
@@ -317,7 +319,9 @@ exports.order_listing_account = catchAsync(async (req, res) => {
    }
    
    let Query = new APIFeatures(
-      Order.find(queryObj).populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by']),
+      Order.find(queryObj)
+         .populate(['created_by', 'customer', 'carrier', 'carrier_payment_updated_by', 'customer_payment_updated_by'])
+         .populate('documents_count'),
       req.query
    ).sort();
 
@@ -550,7 +554,9 @@ exports.order_detail = catchAsync(async (req, res) => {
    if (req.tenantId) {
       criteria.tenantId = req.tenantId;
    }
-   const order = await Order.findOne(criteria).populate(['created_by', 'customer', 'carrier']);
+   const order = await Order.findOne(criteria)
+      .populate(['created_by', 'customer', 'carrier'])
+      .populate('documents_count');
    
     if(!order){ 
       res.json({
@@ -965,7 +971,9 @@ exports.orderPayments = catchAsync(async (req, res, next) => {
    }
    
    let Query = new APIFeatures(
-      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      Order.find(queryObj)
+         .populate(['created_by', 'customer', 'carrier'])
+         .populate('documents_count'),
       req.query
    ).sort();
 
@@ -1010,7 +1018,9 @@ exports.all_payments_status = catchAsync(async (req, res, next) => {
    }
    
    let Query = new APIFeatures(
-      Order.find(queryObj).populate(['created_by', 'customer', 'carrier']),
+      Order.find(queryObj)
+         .populate(['created_by', 'customer', 'carrier'])
+         .populate('documents_count'),
       req.query
    ).sort();
 

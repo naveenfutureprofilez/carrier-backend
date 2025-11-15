@@ -179,6 +179,15 @@ schema.virtual('profit').get(function () {
     return profit;
 });
 
+// Count of documents/files attached to this order
+// Uses Mongoose virtual populate count for efficient aggregation
+schema.virtual('documents_count', {
+    ref: 'files',
+    localField: '_id',
+    foreignField: 'order',
+    count: true
+});
+
 // Compound indexes for multi-tenant performance
 schema.index({ tenantId: 1, serial_no: 1 }, { unique: true });
 schema.index({ tenantId: 1, createdAt: -1 });

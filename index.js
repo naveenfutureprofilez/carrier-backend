@@ -40,9 +40,6 @@ app.use(morgan('dev'));
 app.use(errorHandler);
 app.use(globalErrorHandler);
 app.use(bodyParser.urlencoded({ extended: true }));
-
-// Stripe webhook removed
-
 app.use(bodyParser.json({limit:'2000mb'}));
 app.use("/user", require('./routes/authRoutes'));
 app.use("/user", require('./routes/userRoutes'));

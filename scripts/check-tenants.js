@@ -24,11 +24,13 @@ async function checkTenants() {
     
     tenants.forEach((tenant, index) => {
       console.log(`${index + 1}. ${tenant.name}`);
+      console.log(`   _id: ${tenant._id}`);
       console.log(`   Tenant ID: ${tenant.tenantId}`);
       console.log(`   Subdomain: ${tenant.subdomain}`);
       console.log(`   Domain: ${tenant.domain}`);
       console.log(`   Status: ${tenant.status}`);
       console.log(`   Subscription Status: ${tenant.subscription?.status}`);
+      console.log(`   Admin Email: ${tenant.contactInfo?.adminEmail || 'N/A'}`);
       console.log('');
     });
     
