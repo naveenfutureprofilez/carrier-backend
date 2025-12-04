@@ -748,7 +748,7 @@ exports.cummodityLists = catchAsync(async (req, res, next) => {
 
 exports.addEquipment = catchAsync(async (req, res, next) => {
    const { value } = req.body;
-   const tenantId = req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   const tenantId = (req.user && req.user.tenantId) || req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
    
    if (!tenantId) {
       return res.status(400).json({
@@ -791,7 +791,7 @@ exports.addEquipment = catchAsync(async (req, res, next) => {
 
 exports.removeEquipment = catchAsync(async (req, res, next) => {
    const { id } = req.body;
-   const tenantId = req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   const tenantId = (req.user && req.user.tenantId) || req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
    
    if (!tenantId) {
       return res.status(400).json({
@@ -821,7 +821,7 @@ exports.removeEquipment = catchAsync(async (req, res, next) => {
 });
 
 exports.equipmentLists = catchAsync(async (req, res, next) => {
-   const filter = req.dbFilter || { tenantId: req.tenantId };
+   const filter = req.dbFilter || { tenantId: (req.user && req.user.tenantId) || req.tenantId };
    
    if (!filter || !filter.tenantId) {
       return res.status(400).json({
@@ -847,24 +847,63 @@ exports.equipmentLists = catchAsync(async (req, res, next) => {
 
 exports.addCharges = catchAsync(async (req, res, next) => {
    const { value } = req.body;
-   Charges.create({
-      name: value,
-      company:req.user && req.user.company ? req.user.company._id : null,
-   }).then(result => {
+   const tenantId = (req.user && req.user.tenantId) || req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   
+   if (!tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   if (!value || !value.trim()) {
+      return res.status(400).json({
+         status: false,
+         message: "Charge item name is required."
+      });
+   }
+   
+   try {
+      const existing = await Charges.findOne({ tenantId, name: value.trim() });
+      if (existing) {
+         return res.status(409).json({
+            status: false,
+            message: "Charge item already exists for this tenant."
+         });
+      }
+      await Charges.create({
+         tenantId,
+         name: value.trim(),
+         company: req.user && req.user.company ? req.user.company._id : null,
+      });
       res.send({
-      status: true,
-      message: "Charge item has been added.",
-   });
-   }).catch(err => {
+         status: true,
+         message: "Charge item has been added.",
+      });
+   } catch (err) {
       JSONerror(res, err, next);
       logger(err);
-   });
+   }
 });
 
 exports.removeCharge = catchAsync(async (req, res, next) => {
    const { id } = req.body;
-   Charges.findByIdAndDelete(id)
-     .then(() => {
+   const tenantId = (req.user && req.user.tenantId) || req.tenantId || (req.dbFilter && req.dbFilter.tenantId);
+   
+   if (!tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   
+   Charges.deleteOne({ _id: id, tenantId })
+     .then((result) => {
+       if (result.deletedCount === 0) {
+         return res.status(404).json({
+           status: false,
+           message: "Charge not found for this tenant."
+         });
+       }
        res.send({
          status: true,
          message: "Charge has been permanently removed.",
@@ -877,7 +916,15 @@ exports.removeCharge = catchAsync(async (req, res, next) => {
 });
 
 exports.chargesLists = catchAsync(async (req, res, next) => {
-   const list = await Charges.find({});
+   const filter = req.dbFilter || { tenantId: (req.user && req.user.tenantId) || req.tenantId };
+   
+   if (!filter || !filter.tenantId) {
+      return res.status(400).json({
+         status: false,
+         message: "Tenant ID is required."
+      });
+   }
+   const list = await Charges.find(filter).sort({ name: 1 });
    const arr = [];
    list.map((item) => {
       arr.push({

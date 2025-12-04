@@ -8,6 +8,7 @@ const Company = require('../db/Company');
 const Order = require('../db/Order');
 const Customer = require('../db/Customer');
 const Carrier = require('../db/Carrier');
+const Files = require('../db/Files');
 const bcrypt = require('bcrypt');
 
 /**
@@ -154,7 +155,7 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
     return next(new AppError('Tenant not found', 404));
   }
 
-  const [company, usage, subscriptionPlan, financialAgg] = await Promise.all([
+  const [company, usage, subscriptionPlan, financialAgg, docsCount] = await Promise.all([
     Company.findOne({ tenantId }),
     Promise.all([
       User.countDocuments(User.activeFilter(tenantId)),
@@ -172,7 +173,8 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
           lastOrderDate: { $max: '$createdAt' }
         }
       }
-    ])
+    ]),
+    Files.countDocuments({ tenantId })
   ]);
 
   const [users, orders, customers, carriers] = usage;
@@ -185,7 +187,7 @@ const getTenantDetails = catchAsync(async (req, res, next) => {
       tenant,
       company,
       subscriptionPlan,
-      usage: { users, orders, customers, carriers },
+      usage: { users, orders, customers, carriers, documents: docsCount },
       revenue,
       lastActive
     }

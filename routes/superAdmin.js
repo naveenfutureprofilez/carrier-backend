@@ -20,6 +20,7 @@ const {
 
 // Also import invite tenant admin from extended controller
 const { inviteTenantAdmin } = require('../controllers/superAdminTenantController');
+const { hardDeleteTenant } = require('../controllers/superAdminTenantController');
 
 // Import emulation functions
 const { 
@@ -78,6 +79,8 @@ router.put('/tenants/:tenantId/info', updateTenantInfo);
 router.get('/tenants/:tenantId/logs', getTenantActivityLogs);
 // Invite tenant admin and approve
 router.post('/tenants/:id/invite-admin', inviteTenantAdmin);
+// Permanent deletion of tenant and related data
+router.delete('/tenants/:tenantId/hard-delete', hardDeleteTenant);
 
 // Subscription Plan Management
 router.get('/subscription-plans', getSubscriptionPlans);

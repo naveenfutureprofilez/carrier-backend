@@ -312,13 +312,15 @@ const signup = catchAsync(async (req, res, next) => {
  
 const login = catchAsync ( async (req, res, next) => { 
    const { email, password, tenantId } = req.body;
+   const normalizedEmail = (email || '').trim().toLowerCase();
+   const normalizedTenantId = (tenantId || '').trim().toLowerCase();
    if(!email || !password){
       return next(new AppError("Email and password is required !!", 401))
    }
    if(!tenantId){
       return next(new AppError("Tenant ID is required !!", 401))
    }
-    const user = await User.findOne({ email, tenantId }).select('+password').lean();
+    const user = await User.findOne({ email: normalizedEmail, tenantId: normalizedTenantId }).select('+password').lean();
     
     if (!user) {
         return res.status(200).json({ status: false, message: "Invalid Details" });
@@ -336,7 +338,6 @@ const login = catchAsync ( async (req, res, next) => {
       message:"Details are invalid.",
      });   
    }
-
    const token = await signToken(user._id);
   //  res.cookie('jwt', token, {
   //   expires:new Date(Date.now() + 30*24*60*60*1000),
@@ -912,6 +913,8 @@ const testSuperAdminLogin = catchAsync(async (req, res, next) => {
  */
 const multiTenantLogin = catchAsync(async (req, res, next) => {
   const { email, password, tenantId, isSuperAdmin } = req.body;
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  const normalizedTenantIdInput = (tenantId || '').trim().toLowerCase();
   
   if (!email || !password) {
     console.log('❌ Missing email or password');
@@ -920,7 +923,7 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
   
   try {
     // First, try to find super admin by email
-    const superAdmin = await SuperAdmin.findOne({ email }).select('+password');
+    const superAdmin = await SuperAdmin.findOne({ email: normalizedEmail }).select('+password');
     
     if (superAdmin) {
       console.log('🔍 Found super admin with email:', email);
@@ -971,7 +974,7 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
     }
     
     // If not super admin, try to find tenant user
-    console.log('🔍 Not super admin, searching for tenant user with email:', email);
+    console.log('🔍 Not super admin, searching for tenant user with email:', normalizedEmail);
     
     // If tenantId is provided (backward compatibility), use it
     if (tenantId) {
@@ -979,7 +982,7 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
     } else {
       // Auto-detect tenant from user email - find any user with this email
       console.log('🔍 Auto-detecting tenant from user email...');
-      const userWithEmail = await User.findOne({ email }).select('+password').populate('company');
+      const userWithEmail = await User.findOne({ email: normalizedEmail }).select('+password').populate('company');
       
       if (!userWithEmail) {
         console.log('❌ No user found with email:', email);
@@ -991,10 +994,10 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
       
       console.log('✅ Found tenant user, using tenantId:', userWithEmail.tenantId);
       // Use the user's tenantId for tenant validation
-      req.body.tenantId = userWithEmail.tenantId;
+      req.body.tenantId = (userWithEmail.tenantId || '').toLowerCase();
     }
     
-    const finalTenantId = tenantId || req.body.tenantId;
+    const finalTenantId = normalizedTenantIdInput || req.body.tenantId;
     
     console.log('🔍 Looking up tenant with tenantId:', finalTenantId);
     
@@ -1080,7 +1083,7 @@ const multiTenantLogin = catchAsync(async (req, res, next) => {
     });
     
     const user = await User.findOne({ 
-      email, 
+      email: normalizedEmail, 
       tenantId: actualTenantId 
     }).select('+password').populate('company');
     

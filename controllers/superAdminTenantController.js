@@ -10,6 +10,7 @@ const Customer = require('../db/Customer');
 const Carrier = require('../db/Carrier');
 const { generateTenantUrl } = require('../middleware/tenantResolver');
 const bcrypt = require('bcrypt');
+const mongoose = require('mongoose');
 
 /**
  * Get all tenants with pagination and filtering
@@ -270,7 +271,6 @@ const createTenant = catchAsync(async (req, res, next) => {
   const adminPassword = providedPassword && typeof providedPassword === 'string' && providedPassword.length >= 6
     ? providedPassword
     : (isProd ? Math.random().toString(36).substring(2, 15) : defaultDevPassword);
-  const hashedPassword = await bcrypt.hash(adminPassword, 12);
   
   try {
     // Create tenant first
@@ -302,13 +302,13 @@ Freight charges include $100 for MacroPoint tracking. Non-compliance may lead to
 Cross-border shipments require custom stamps or deductions may apply.`
     });
 
-    // Create admin user
+    // Create admin user (plain password; User model will hash)
     adminUser = await User.create({
       tenantId,
       company: company._id,
       name: contactInfo.adminName || 'Administrator',
       email: contactInfo.adminEmail,
-      password: hashedPassword,
+      password: adminPassword,
       phone: contactInfo.phone || '',
       country: 'USA',
       address: contactInfo.address || 'N/A',
@@ -448,6 +448,60 @@ const deleteTenant = catchAsync(async (req, res, next) => {
 });
 
 /**
+ * Permanently delete tenant and all related data
+ */
+const hardDeleteTenant = catchAsync(async (req, res, next) => {
+  const { tenantId } = req.params;
+
+  if (!req.isSuperAdminUser && !req.superAdmin) {
+    return next(new AppError('Super admin access required', 403));
+  }
+
+  if (!tenantId) {
+    return next(new AppError('Tenant ID is required', 400));
+  }
+
+  let tenant;
+  if (mongoose.Types.ObjectId.isValid(tenantId)) {
+    tenant = await Tenant.findOne({ $or: [{ tenantId }, { _id: tenantId }] });
+  } else {
+    tenant = await Tenant.findOne({ tenantId });
+  }
+  if (!tenant) {
+    return next(new AppError('Tenant not found', 404));
+  }
+
+  const slug = tenant.tenantId;
+
+  try {
+    await Promise.all([
+      User.deleteMany({ tenantId: slug }),
+      Order.deleteMany({ tenantId: slug }),
+      Customer.deleteMany({ tenantId: slug }),
+      Carrier.deleteMany({ tenantId: slug }),
+      Company.deleteMany({ tenantId: slug }),
+      require('../db/Equipment').deleteMany({ tenantId: slug }),
+      require('../db/Commudity').deleteMany({ tenantId: slug }),
+      require('../db/Charges').deleteMany({ tenantId: slug }),
+      require('../db/Files').deleteMany({ tenantId: slug }),
+      require('../db/Notification').deleteMany({ tenantId: slug }),
+      require('../db/PaymentLogs').deleteMany({ tenantId: slug })
+    ]);
+
+    await Tenant.deleteOne({ _id: tenant._id });
+
+    return res.json({
+      status: true,
+      message: 'Tenant and all related data permanently deleted',
+      data: { tenantId: slug }
+    });
+  } catch (err) {
+    console.error('Hard delete error:', err);
+    return next(new AppError('Failed to permanently delete tenant', 500));
+  }
+});
+
+/**
  * Invite tenant admin
  */
 const inviteTenantAdmin = catchAsync(async (req, res, next) => {
@@ -462,7 +516,6 @@ const inviteTenantAdmin = catchAsync(async (req, res, next) => {
   const tempPassword = password && typeof password === 'string' && password.length >= 6
     ? password
     : Math.random().toString(36).substring(2, 15);
-  const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
   // Create tenant admin user
   const adminUser = await User.create({
@@ -470,7 +523,7 @@ const inviteTenantAdmin = catchAsync(async (req, res, next) => {
     company: await Company.findOne({ tenantId: tenant.tenantId }).then(c => c._id),
     name,
     email,
-    password: hashedPassword,
+    password: tempPassword,
     phone: 'N/A',
     country: 'N/A',
     address: 'N/A',
@@ -896,6 +949,7 @@ module.exports = {
   updateTenant,
   updateTenantStatus,
   deleteTenant,
+  hardDeleteTenant,
   inviteTenantAdmin,
   getSubscriptionPlans,
   createSubscriptionPlan,

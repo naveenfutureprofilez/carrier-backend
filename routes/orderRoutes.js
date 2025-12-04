@@ -20,13 +20,13 @@ router.route('/account/order-status/:id').post(validateToken, restrictOrderMiddl
 router.route('/account/order/addnote/:id').post(validateToken, restrictOrderMiddleware, orderController.addnote);
 
 router.route('/overview').get(validateToken, optionalTenant, orderController.overview);
-router.route('/cummodityLists').get(validateToken, orderController.cummodityLists);
-router.route('/removeCummodity').post(validateToken, orderController.removeCummodity);
-router.route('/addCummodity').post(validateToken, orderController.addCummodity);
+router.route('/cummodityLists').get(validateToken, optionalTenant, orderController.cummodityLists);
+router.route('/removeCummodity').post(validateToken, optionalTenant, orderController.removeCummodity);
+router.route('/addCummodity').post(validateToken, optionalTenant, orderController.addCummodity);
 
-router.route('/equipmentLists').get(validateToken, orderController.equipmentLists);
-router.route('/removeEquipment').post(validateToken, orderController.removeEquipment);
-router.route('/addEquipment').post(validateToken, orderController.addEquipment);
+router.route('/equipmentLists').get(validateToken, optionalTenant, orderController.equipmentLists);
+router.route('/removeEquipment').post(validateToken, optionalTenant, orderController.removeEquipment);
+router.route('/addEquipment').post(validateToken, optionalTenant, orderController.addEquipment);
 
 router.route('/chargesLists').get(validateToken, orderController.chargesLists);
 router.route('/removeCharge').post(validateToken, orderController.removeCharge);

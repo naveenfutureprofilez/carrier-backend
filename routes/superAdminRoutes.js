@@ -35,6 +35,8 @@ router.delete('/tenants/:id', validateToken, superAdminTenantController.deleteTe
 router.patch('/tenants/:id/status', validateToken, superAdminTenantController.updateTenantStatus);
 router.post('/tenants/:id/invite-admin', validateToken, superAdminTenantController.inviteTenantAdmin);
 router.post('/tenants/:tenantId/ensure-company', validateToken, superAdminTenantController.ensureCompanyRecord);
+// Permanent tenant deletion
+router.delete('/tenants/:tenantId/hard-delete', validateToken, superAdminTenantController.hardDeleteTenant);
 // Tenant subscription management
 router.get('/tenants/:tenantId/subscription', validateToken, superAdminTenantController.getTenantSubscriptionDetails);
 router.put('/tenants/:tenantId/subscription', validateToken, superAdminTenantController.updateTenantSubscriptionPlan);

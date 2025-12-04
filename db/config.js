@@ -1,6 +1,6 @@
-// db.js (or a similar module)
+// db.js
 const mongoose = require("mongoose");
-mongoose.set('strictQuery', true);
+mongoose.set("strictQuery", true);
 
 let cachedConnection = null;
 
@@ -10,17 +10,13 @@ async function connectDB() {
   }
   try {
     const db = await mongoose.connect(process.env.DB_URL_OFFICE, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      maxPoolSize: 30,
-      serverSelectionTimeoutMS: 60000,
-      socketTimeoutMS: 120000,
-      connectTimeoutMS: 120000,
-      bufferCommands: true,
+      maxPoolSize: 20,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
       autoIndex: true,
-      keepAlive: true,
-      keepAliveInitialDelay: 300000,
     });
+
     console.log("✅ Database connected successfully");
     cachedConnection = db;
     return db;
@@ -31,4 +27,3 @@ async function connectDB() {
 }
 
 module.exports = connectDB;
-
