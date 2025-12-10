@@ -2,16 +2,10 @@ const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/AppError');
-const JSONerror = require('../utils/jsonErrorHandler');
-
-// Use the same JWT secret as the existing auth system
 const SECRET_ACCESS = process.env.SECRET_ACCESS || 'MYSECRET';
-
-// Import models
 const User = require('../db/Users');
 const SuperAdmin = require('../db/SuperAdmin');
 const Tenant = require('../db/Tenant');
-const Company = require('../db/Company');
 
 // Import utilities
 const { generateTenantUrl, generateSuperAdminUrl } = require('../middleware/tenantResolver');
