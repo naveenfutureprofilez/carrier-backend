@@ -60,7 +60,6 @@ app.use("/tenant-debug", require('./routes/tenant-debug'));
 
 
 
-
 // API-specific 404 handler - ensures all API routes return JSON
 app.use('/api', (req, res) => {
   res.status(404).json({ 
