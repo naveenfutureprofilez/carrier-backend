@@ -25,8 +25,7 @@ jobs:
             pm2 -v
             cd /home/ubuntu/carrier-backend
             ls -la
-            git add .
-            git commit -m "Deploying latest changes"
+            git stash
             git pull origin main
             npm install
             pm2 restart all

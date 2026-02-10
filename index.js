@@ -28,6 +28,8 @@ const os = require('os');
 //   credentials: true,
 // };
 // app.use(cors(corsOptions));
+
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
