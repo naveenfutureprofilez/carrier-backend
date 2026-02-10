@@ -13,11 +13,19 @@ jobs:
       - name: SSH Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd ${{ secrets.APP_PATH }}
-            git pull origin main
-            npm install
-            pm2 restart all
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          set -e
+          whoami
+          pwd
+          node -v
+          npm -v
+          pm2 -v
+          cd ${{ secrets.APP_PATH }}
+          ls -la
+          git status
+          git pull origin main
+          npm install
+          pm2 restart all
