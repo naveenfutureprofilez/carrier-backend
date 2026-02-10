@@ -23,9 +23,9 @@ jobs:
           node -v
           npm -v
           pm2 -v
-          cd ${{ secrets.APP_PATH }}
+          cd /var/www/myapp
           ls -la
-          git status
           git pull origin main
           npm install
-          pm2 restart all
+          pm2 restart my-app
+
