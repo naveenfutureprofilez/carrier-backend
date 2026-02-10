@@ -338,6 +338,7 @@ const login = catchAsync ( async (req, res, next) => {
       message:"Details are invalid.",
      });   
    }
+   
    const token = await signToken(user._id);
   //  res.cookie('jwt', token, {
   //   expires:new Date(Date.now() + 30*24*60*60*1000),
