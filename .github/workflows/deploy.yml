@@ -26,6 +26,7 @@ jobs:
             cd /home/ubuntu/carrier-backend
             ls -la
             git stash
+            git config pull.rebase false
             git pull origin main
             npm install
             pm2 restart all
