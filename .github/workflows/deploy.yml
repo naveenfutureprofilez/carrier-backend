@@ -23,7 +23,7 @@ jobs:
             node -v
             npm -v
             pm2 -v
-            cd /var/www/myapp
+            cd /home/ubuntu/carrier-backend
             ls -la
             git pull origin main
             npm install
