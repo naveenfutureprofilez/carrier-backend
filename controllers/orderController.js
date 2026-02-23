@@ -348,30 +348,36 @@ exports.order_listing_account = catchAsync(async (req, res) => {
 
 exports.updateOrderPaymentStatus = catchAsync(async (req, res) => {
    try { 
-      const { status, method, notes } = req.body;
+      const { status, method, notes, approve } = req.body;
       let order;
       if(req.params.type === 'customer'){ 
-            order = await Order.findByIdAndUpdate(req.params.id, {
+            const update = {
                customer_payment_status : status,
                customer_payment_date  : Date.now(),
                customer_payment_method : method,
                customer_payment_notes : notes,
                customer_payment_updated_by : req?.user?._id,
-               customer_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
-            }, {
+            };
+            if (approve && req?.user?.is_admin == 1) {
+               update.customer_payment_approved_by_admin = 1;
+            }
+            order = await Order.findByIdAndUpdate(req.params.id, update, {
               new: true, 
               runValidators: true,
             });
          await CreatePaymentLog(req.user?._id, req.params.id, status, method, 'customer', req?.user?.is_admin == 1 ? 'admin' : null);
       } else { 
-         order = await Order.findByIdAndUpdate(req.params.id, {
+         const update = {
             carrier_payment_status :status,
             carrier_payment_date : Date.now(),
             carrier_payment_method : method,
             carrier_payment_notes : notes,
             carrier_payment_updated_by : req?.user?._id,
-            carrier_payment_approved_by_admin : req?.user?.is_admin == 1 ? 1 : 0,
-         },{
+         };
+         if (approve && req?.user?.is_admin == 1) {
+            update.carrier_payment_approved_by_admin = 1;
+         }
+         order = await Order.findByIdAndUpdate(req.params.id, update, {
            new: true, 
            runValidators: true,
          });
