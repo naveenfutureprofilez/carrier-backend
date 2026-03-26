@@ -240,4 +240,91 @@ router.get('/tenant/reports/carriers', validateToken, tenantAdminController.getC
 router.get('/tenant/reports/financial', validateToken, tenantAdminController.getFinancialReport);
 router.post('/tenant/reports/export', validateToken, tenantAdminController.exportData);
 
+router.patch('/admin/users/:id/modules', validateToken, async (req, res) => {
+  try {
+    if (!req.isSuperAdminUser && !req.superAdmin) {
+      return res.status(403).json({
+        status: false,
+        message: 'Super admin access required'
+      });
+    }
+    const userId = req.params.id;
+    const { allowedModules } = req.body || {};
+    if (!Array.isArray(allowedModules)) {
+      return res.status(400).json({
+        status: false,
+        message: 'allowedModules must be an array'
+      });
+    }
+    const valid = ['outsourcing', 'regular'];
+    const cleaned = [...new Set(allowedModules.filter(m => valid.includes(String(m).toLowerCase())))]
+      .map(m => m.toLowerCase());
+    const User = require('../db/Users');
+    const filter = { _id: userId };
+    if (req.tenantId) {
+      filter.tenantId = req.tenantId;
+    }
+    const user = await User.findOne(filter);
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: 'User not found'
+      });
+    }
+    user.allowedModules = cleaned;
+    await user.save({ validateBeforeSave: false });
+    res.json({
+      status: true,
+      message: 'User modules updated',
+      allowedModules: user.allowedModules
+    });
+  } catch (error) {
+    console.error('Admin modules update error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Failed to update modules'
+    });
+  }
+});
+
+router.get('/admin/users', validateToken, async (req, res) => {
+  try {
+    if (!req.isSuperAdminUser && !req.superAdmin) {
+      return res.status(403).json({
+        status: false,
+        message: 'Super admin access required'
+      });
+    }
+    const User = require('../db/Users');
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({
+        status: false,
+        message: 'Tenant context is required (?tenant=<tenantId> or X-Tenant-ID)'
+      });
+    }
+    const { q } = req.query;
+    const filter = { tenantId };
+    if (q && q.trim()) {
+      const keyword = q.trim();
+      filter.$or = [
+        { name: { $regex: keyword, $options: 'i' } },
+        { email: { $regex: keyword, $options: 'i' } },
+        { corporateID: { $regex: keyword, $options: 'i' } }
+      ];
+    }
+    const users = await User.find(filter, 'name email role is_admin allowedModules status createdAt').sort({ createdAt: -1 }).lean();
+    res.json({
+      status: true,
+      users
+    });
+  } catch (error) {
+    console.error('Admin users list error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Failed to fetch users'
+    });
+  }
+});
+
 module.exports = router;

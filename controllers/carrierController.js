@@ -293,7 +293,7 @@ exports.getDistance = async (req, res) => {
     
 
     const totalKM = (totalDistance / 1000).toFixed(2);
-    const totalDistanceMiles = (totalKM / 1609.34).toFixed(2);
+    const totalDistanceMiles = (totalDistance / 1609.34).toFixed(2);
 
     res.json({
       status:true,

@@ -193,7 +193,8 @@ const createTenant = catchAsync(async (req, res, next) => {
         maxCustomers: subscriptionPlan.limits.maxCustomers,
         maxCarriers: subscriptionPlan.limits.maxCarriers
       },
-      planFeatures: subscriptionPlan.features
+      planFeatures: subscriptionPlan.features,
+      allowedModules: subscriptionPlan.allowedModules || ['outsourcing', 'regular']
     };
   } else if (subscription?.plan) {
     // Old format - using string plan name (now supported by Mixed type)
@@ -583,7 +584,7 @@ const getSubscriptionPlans = catchAsync(async (req, res, next) => {
   }
   
   const plans = await SubscriptionPlan.find(filter)
-    .select('name slug description limits features isPublic')
+    .select('name slug description limits features isPublic allowedModules')
     .sort({ name: 1 });
 
   res.json({
@@ -622,10 +623,34 @@ const updateSubscriptionPlan = catchAsync(async (req, res, next) => {
     return next(new AppError('Subscription plan not found', 404));
   }
 
+  // Sync plan changes to all active tenants using this plan
+  if (req.body.allowedModules || req.body.limits || req.body.features) {
+    try {
+      const Tenant = require('../db/Tenant');
+      const updateObj = {};
+      if (req.body.allowedModules) updateObj['subscription.allowedModules'] = req.body.allowedModules;
+      if (req.body.features) updateObj['subscription.planFeatures'] = req.body.features;
+      if (req.body.limits) {
+        if (req.body.limits.maxUsers) updateObj['subscription.planLimits.maxUsers'] = req.body.limits.maxUsers;
+        if (req.body.limits.maxOrders) updateObj['subscription.planLimits.maxOrders'] = req.body.limits.maxOrders;
+        if (req.body.limits.maxCustomers) updateObj['subscription.planLimits.maxCustomers'] = req.body.limits.maxCustomers;
+        if (req.body.limits.maxCarriers) updateObj['subscription.planLimits.maxCarriers'] = req.body.limits.maxCarriers;
+      }
+
+      await Tenant.updateMany(
+        { 'subscription.plan': plan._id },
+        { $set: updateObj }
+      );
+      console.log(`✅ Synced plan ${plan.name} updates to tenants`);
+    } catch (syncErr) {
+      console.error('Failed to sync plan updates to tenants:', syncErr);
+    }
+  }
+
   res.json({
     status: true,
     data: { plan },
-    message: 'Subscription plan updated successfully'
+    message: 'Subscription plan updated successfully and synced to tenants'
   });
 });
 
@@ -862,6 +887,7 @@ const updateTenantSubscriptionPlan = catchAsync(async (req, res, next) => {
           maxCarriers: subscriptionPlan.limits.maxCarriers
         },
         'subscription.planFeatures': subscriptionPlan.features,
+        'subscription.allowedModules': subscriptionPlan.allowedModules || ['outsourcing', 'regular'],
         'subscription.status': 'active',
         'settings.maxUsers': subscriptionPlan.limits.maxUsers,
         'settings.maxOrders': subscriptionPlan.limits.maxOrders,
@@ -934,7 +960,8 @@ const getTenantSubscriptionDetails = catchAsync(async (req, res, next) => {
         status: tenant.subscription.status,
         billingCycle: tenant.subscription.billingCycle,
         limits: subscriptionPlan?.limits || tenant.subscription.planLimits,
-        features: subscriptionPlan?.features || tenant.subscription.planFeatures || []
+        features: subscriptionPlan?.features || tenant.subscription.planFeatures || [],
+        allowedModules: subscriptionPlan?.allowedModules || tenant.subscription.allowedModules || ['outsourcing', 'regular']
       },
       usage,
       availablePlans

@@ -119,7 +119,7 @@ const editUser = catchAsync(async (req, res, next) => {
   } 
   
   try {
-    const result = await User.findByIdAndUpdate(req.params.id, {
+    const payload = {
       name: req.body.name,
       email: req.body.email, 
       staff_commision : req.body.role === 1 ? req.body.staff_commision : null,
@@ -128,8 +128,24 @@ const editUser = catchAsync(async (req, res, next) => {
       position: req.body.position,
       address: req.body.address,
       role: req.body.role,
-      // tenantId is intentionally NOT included - cannot be changed after creation
-    }, { new: true, includeInactive: true });
+    };
+    if (Array.isArray(req.body.allowedModules)) {
+      let cleaned = req.body.allowedModules.filter(m => m === 'outsourcing' || m === 'regular');
+      
+      // Filter by plan modules
+      try {
+        const tenant = await Tenant.findOne({ tenantId: tenantIdFromContext });
+        if (tenant && tenant.subscription && Array.isArray(tenant.subscription.allowedModules)) {
+          const planModules = tenant.subscription.allowedModules;
+          cleaned = cleaned.filter(m => planModules.includes(m));
+        }
+      } catch (err) {
+        console.error('Edit user plan modules check error:', err);
+      }
+      
+      payload.allowedModules = cleaned.length ? cleaned : ['outsourcing', 'regular'];
+    }
+    const result = await User.findByIdAndUpdate(req.params.id, payload, { new: true, includeInactive: true });
     
     result.password = undefined;
     res.send({
@@ -197,7 +213,7 @@ const suspandUser = catchAsync(async (req, res, next) => {
 
 const signup = catchAsync(async (req, res, next) => {
   // Extract fields and explicitly exclude tenantId from body
-  const { role, name, email, avatar, password, generateAutoPassword, staff_commision, position, country, phone, address } = req.body;
+  const { role, name, email, avatar, password, generateAutoPassword, staff_commision, position, country, phone, address, allowedModules } = req.body;
   
   // Prevent client from setting tenantId
   if ('tenantId' in req.body) {
@@ -262,6 +278,22 @@ const signup = catchAsync(async (req, res, next) => {
 
   await User.syncIndexes();
   
+  // Validate allowedModules against plan
+  let finalModules = Array.isArray(allowedModules) && allowedModules.length 
+    ? allowedModules.filter(m => m === 'outsourcing' || m === 'regular') 
+    : ['outsourcing', 'regular'];
+  
+  try {
+    const tenant = await Tenant.findOne({ tenantId: tenantIdFromContext });
+    if (tenant && tenant.subscription && Array.isArray(tenant.subscription.allowedModules)) {
+      const planModules = tenant.subscription.allowedModules;
+      finalModules = finalModules.filter(m => planModules.includes(m));
+      if (finalModules.length === 0) finalModules = ['outsourcing', 'regular'];
+    }
+  } catch (err) {
+    console.error('Signup plan modules check error:', err);
+  }
+
   try {
     const result = await User.create({
       name: name,
@@ -278,7 +310,8 @@ const signup = catchAsync(async (req, res, next) => {
       company: creator && creator.company ? creator.company._id : null,
       position: position,
       confirmPassword: generatedPassword,
-      tenantId: tenantIdFromContext // Explicitly set tenant ID from context
+      tenantId: tenantIdFromContext,
+      allowedModules: finalModules
     });
     
     // Debug logging for development
@@ -353,6 +386,27 @@ const login = catchAsync ( async (req, res, next) => {
 
   user.password = undefined;
   user.confirmPassword = undefined;
+
+  // Calculate effective modules for login response
+  let effectiveModules = ['outsourcing', 'regular'];
+  const isTenantAdmin = user.role === 3 || user.is_admin === 1;
+  try {
+    const tenant = await Tenant.findOne({ tenantId: normalizedTenantId });
+    if (tenant && tenant.subscription && Array.isArray(tenant.subscription.allowedModules)) {
+      const planModules = tenant.subscription.allowedModules;
+      if (isTenantAdmin) {
+        effectiveModules = planModules;
+      } else {
+        const userModules = Array.isArray(user.allowedModules) ? user.allowedModules : ['outsourcing', 'regular'];
+        effectiveModules = userModules.filter(m => planModules.includes(m));
+      }
+    }
+  } catch (err) {
+    console.error('Login plan modules check error:', err);
+  }
+  user.allowedModules = effectiveModules.length ? effectiveModules : ['outsourcing', 'regular'];
+  user.isTenantAdmin = isTenantAdmin;
+
    res.status(200).json({
     status :true,
     message:"Login Successfully !!",
@@ -381,13 +435,52 @@ const profile = catchAsync ( async (req, res) => {
     role: req.user.role,
     corporateID: req.user.corporateID,
     is_admin: req.user.is_admin,
+    isTenantAdmin: req.user.role === 3 || req.user.is_admin === 1,
+    tenantId: req.user.tenantId,
     position: req.user.position,
     phone: req.user.phone,
     country: req.user.country,
     address: req.user.address,
     avatar: req.user.avatar,
-    createdAt: req.user.createdAt
+    createdAt: req.user.createdAt,
+    allowedModules: req.user.allowedModules || ['outsourcing', 'regular']
   };
+
+  // If emulating or regular user, we should intersect with plan modules
+  const tenantIdForPlan = req.tenantId || req.user.tenantId;
+  if (tenantIdForPlan) {
+    try {
+      const tenant = await Tenant.findOne({ tenantId: tenantIdForPlan });
+      if (tenant && tenant.subscription) {
+        let planModules = Array.isArray(tenant.subscription.allowedModules) ? tenant.subscription.allowedModules : ['outsourcing', 'regular'];
+        
+        // Fallback to plan record if cached is default and plan exists
+        if (tenant.subscription.plan) {
+          try {
+            const SubscriptionPlan = require('../db/SubscriptionPlan');
+            const planRecord = await SubscriptionPlan.findById(tenant.subscription.plan);
+            if (planRecord && Array.isArray(planRecord.allowedModules) && planRecord.allowedModules.length > 0) {
+              planModules = planRecord.allowedModules;
+            }
+          } catch (planErr) {
+            console.error('Plan fetch error in profile:', planErr);
+          }
+        }
+
+        const userModules = Array.isArray(req.user.allowedModules) ? req.user.allowedModules : ['outsourcing', 'regular'];
+        
+        // Super admin emulating or Tenant Admin gets all plan modules
+        if ((isSuperAdmin && isEmulating) || req.user.role === 3 || req.user.is_admin === 1) {
+           userProfile.allowedModules = planModules;
+        } else {
+           userProfile.allowedModules = userModules.filter(m => planModules.includes(m));
+        }
+        if (userProfile.allowedModules.length === 0) userProfile.allowedModules = ['outsourcing', 'regular'];
+      }
+    } catch (err) {
+      console.error('Plan modules fetch error:', err);
+    }
+  }
 
   // Handle superadmin emulation
   if (isSuperAdmin && isEmulating) {
@@ -466,8 +559,8 @@ const employeesLisiting = catchAsync ( async (req, res) => {
   }
   
   try {
-    // Use Mongoose query with proper filtering - include inactive users
-    const employees = await User.find(baseFilter, null, { includeInactive: true })
+    // Use Mongoose query with proper filtering - exclude inactive users
+    const employees = await User.find(baseFilter)
       .select('name email status role tenantId createdAt position phone country address corporateID created_by')
       .sort({ createdAt: -1 })
       .lean();

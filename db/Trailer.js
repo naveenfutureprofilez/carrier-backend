@@ -13,6 +13,7 @@ const trailerSchema = new mongoose.Schema({
   length: { type: Number },
   make: { type: String },
   model: { type: String },
+  ratePerMile: { type: Number, default: 0 },
   notes: { type: String },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
   createdAt: { type: Date, default: Date.now },
@@ -28,4 +29,3 @@ trailerSchema.index({ tenantId: 1, createdAt: -1 });
 
 const Trailer = mongoose.model('trailers', trailerSchema);
 module.exports = Trailer;
-

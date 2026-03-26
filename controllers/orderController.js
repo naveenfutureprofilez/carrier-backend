@@ -7,6 +7,7 @@ const Commudity = require("../db/Commudity");
 const Equipment = require("../db/Equipment");
 const Charges = require("../db/Charges");
 const PaymentLogs = require("../db/PaymentLogs");
+const Trip = require("../db/Trip");
 const { checkOrderLimit } = require("../middlewares/planLimitsMiddleware");
 
 async function CreatePaymentLog(user, order, status, method, type, approval) {
@@ -22,12 +23,10 @@ async function CreatePaymentLog(user, order, status, method, type, approval) {
    return payment;
 }
 
-// Helper function to generate unique serial number atomically
-async function generateUniqueSerialNumber() {
+async function generateUniqueSerialNumber(tenantId) {
    const mongoose = require('mongoose');
    
    try {
-      // Create a counter collection schema if it doesn't exist
       const counterSchema = new mongoose.Schema({
          _id: { type: String, required: true },
          sequence_value: { type: Number, default: 1000 }
@@ -40,29 +39,26 @@ async function generateUniqueSerialNumber() {
          Counter = mongoose.model('counters', counterSchema);
       }
       
-      // Check if counter exists, if not, initialize it with the max existing serial number
-      let existingCounter = await Counter.findOne({ _id: 'serial_no' });
+      const counterKey = `serial_no:${tenantId || 'legacy_tenant_001'}`;
+      let existingCounter = await Counter.findOne({ _id: counterKey });
       
       if (!existingCounter) {
-         // Find the maximum existing serial number in orders
-         const maxOrder = await Order.findOne({}, { serial_no: 1 }).sort({ serial_no: -1 }).lean();
+         const maxOrder = await Order.findOne({ tenantId: tenantId || 'legacy_tenant_001' }, { serial_no: 1 }).sort({ serial_no: -1 }).lean();
          const maxSerialNo = maxOrder ? maxOrder.serial_no : 1000;
          
-         // Initialize counter with max existing serial number
          existingCounter = await Counter.create({
-            _id: 'serial_no',
+            _id: counterKey,
             sequence_value: maxSerialNo
          });
       }
       
-      // Atomically increment and get the next serial number with retry mechanism
       let attempts = 0;
       const maxAttempts = 3;
       
       while (attempts < maxAttempts) {
          try {
             const counter = await Counter.findOneAndUpdate(
-               { _id: 'serial_no' },
+               { _id: counterKey },
                { $inc: { sequence_value: 1 } },
                { new: true }
             );
@@ -78,7 +74,6 @@ async function generateUniqueSerialNumber() {
                throw new Error(`Failed to generate unique serial number after ${maxAttempts} attempts: ${error.message}`);
             }
             
-            // Wait before retry (exponential backoff)
             await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 100));
          }
       }
@@ -106,6 +101,10 @@ exports.create_order = catchAsync(async (req, res, next) => {
          carrier_payment_date,
          carrier_payment_method,
 
+         order_type,
+         driver,
+         truck,
+         trailer,
          
          // Revennue
          revenue_items,
@@ -117,8 +116,7 @@ exports.create_order = catchAsync(async (req, res, next) => {
          order_status,
        } = req.body;
  
-      // Generate unique serial number atomically
-      const newOrderId = await generateUniqueSerialNumber();
+      const newOrderId = await generateUniqueSerialNumber(req.tenantId || req.user?.tenantId || 'legacy_tenant_001');
       const order = await Order.create({
          company_name,
          serial_no : parseInt(newOrderId),
@@ -133,6 +131,11 @@ exports.create_order = catchAsync(async (req, res, next) => {
          carrier_amount, 
          carrier_payment_date,
          carrier_payment_method,
+
+         order_type,
+         driver,
+         truck,
+         trailer,
 
          revenue_items,
          carrier_revenue_items,
@@ -150,6 +153,38 @@ exports.create_order = catchAsync(async (req, res, next) => {
             status:false,
             message: "Failed to create order."
          });
+      }
+      
+      // Create a default trip covering the entire route
+      try {
+         const locations = Array.isArray(order.shipping_details) && order.shipping_details[0]
+            ? (order.shipping_details[0].locations || [])
+            : [];
+         if (locations.length > 0) {
+            const startLoc = locations[0];
+            const endLoc = locations[locations.length - 1];
+            const defaultTrip = new Trip({
+               tenantId: req.tenantId || req.user?.tenantId,
+               order: order._id,
+               trip_no: 1,
+               start_stop_index: 0,
+               end_stop_index: locations.length - 1,
+               driver: order.order_type === 'regular' ? order.driver : null,
+               truck: order.order_type === 'regular' ? order.truck : null,
+               trailer: order.order_type === 'regular' ? order.trailer : null,
+               carrier: order.order_type === 'outsourcing' ? order.carrier : null,
+               start_location: `${startLoc.location || startLoc.address || ''}${startLoc.city ? `, ${startLoc.city}` : ''}`,
+               end_location: `${endLoc.location || endLoc.address || ''}${endLoc.city ? `, ${endLoc.city}` : ''}`,
+               miles: Number(order.totalDistance) || 0,
+               totalDistance: Number(order.totalDistance) || 0,
+               distance_unit: 'mi',
+               rate_per_mile: 0,
+               created_by: req.user._id
+            });
+            await defaultTrip.save();
+         }
+      } catch (tripErr) {
+         console.error('Default trip creation failed:', tripErr);
       }
       res.json({
          status:true,
@@ -288,7 +323,26 @@ exports.order_listing = catchAsync(async (req, res, next) => {
       ).sort();
 
    const { query, page, limit, totalPages } = await Query.paginate();
-   let data = await query;
+  let data = await query;
+  // Attach trips_count for each order
+  try {
+     const ids = (data || []).map(o => o._id);
+     if (ids.length > 0) {
+        const grouped = await Trip.aggregate([
+           { $match: { order: { $in: ids } } },
+           { $group: { _id: "$order", c: { $sum: 1 } } }
+        ]);
+        const map = {};
+        grouped.forEach(g => { map[String(g._id)] = g.c; });
+        data = data.map(o => {
+           const obj = o.toObject ? o.toObject() : o;
+           obj.trips_count = map[String(o._id)] || 0;
+           return obj;
+        });
+     }
+  } catch (e) {
+     // fail silently, do not break listing
+  }
 
    res.json({
       status: true,
@@ -326,7 +380,24 @@ exports.order_listing_account = catchAsync(async (req, res) => {
    ).sort();
 
       const { query, totalDocuments, page, limit, totalPages } = await Query.paginate();
-      let data = await query;
+  let data = await query;
+  // Attach trips_count for each order
+  try {
+     const ids = (data || []).map(o => o._id);
+     if (ids.length > 0) {
+        const grouped = await Trip.aggregate([
+           { $match: { order: { $in: ids } } },
+           { $group: { _id: "$order", c: { $sum: 1 } } }
+        ]);
+        const map = {};
+        grouped.forEach(g => { map[String(g._id)] = g.c; });
+        data = data.map(o => {
+           const obj = o.toObject ? o.toObject() : o;
+           obj.trips_count = map[String(o._id)] || 0;
+           return obj;
+        });
+     }
+  } catch (e) {}
 
       res.json({
          status: true,

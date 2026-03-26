@@ -41,6 +41,11 @@ const subscriptionPlanSchema = new mongoose.Schema({
       min: [0, 'Limit cannot be negative']
     }
   },
+  allowedModules: {
+    type: [String],
+    enum: ['outsourcing', 'regular'],
+    default: ['outsourcing', 'regular']
+  },
   features: {
     type: [String],
     required: true,

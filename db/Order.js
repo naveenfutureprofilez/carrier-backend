@@ -19,10 +19,8 @@ const schema = new mongo.Schema({
     },
     serial_no:  {
         type: Number,
-        unique:true,
         min: 0,
     },
-    
     shipping_details : [],
     
     // Customer
@@ -30,7 +28,15 @@ const schema = new mongo.Schema({
         type: mongoose.Schema.Types.ObjectId, ref: 'customers',
         required:[true, 'Please enter customer details.'],
     },
-   
+    order_type: {
+        type: String,
+        enum: ['outsourcing', 'regular'],
+        default: 'outsourcing',
+        index: true
+    },
+    driver: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
+    truck: { type: mongoose.Schema.Types.ObjectId, ref: 'trucks' },
+    trailer: { type: mongoose.Schema.Types.ObjectId, ref: 'trailers' },
     total_amount: {
         type:Number,
         required:[true, 'Please enter total amount of this order.'],
@@ -39,7 +45,6 @@ const schema = new mongo.Schema({
         type: Boolean,
         default: false
     },
-    
     // CUSTOMER PAYEMENTS
     customer_payment_status : {
         type: String,
@@ -58,8 +63,6 @@ const schema = new mongo.Schema({
     customer_payment_updated_by :{
         type: mongoose.Schema.Types.ObjectId, ref: 'users',
     },
-
-
     // CARRIER PAYMENTS
     carrier_payment_status : {
         type: String,
@@ -78,18 +81,21 @@ const schema = new mongo.Schema({
     carrier_payment_updated_by :{
         type: mongoose.Schema.Types.ObjectId, ref: 'users',
     },
-
     // Carrier
     carrier: { 
         type: mongoose.Schema.Types.ObjectId, ref: 'carriers',
-        required:[true, 'Please enter carrier details.'],
+        required:[function() { 
+            const type = this.order_type;
+            return type === 'outsourcing';
+        }, 'Please enter carrier details.'],
     }, 
     carrier_amount:  {
         type:Number,
-        required:[true, 'Please enter selling amount of this order.'],
+        required:[function() { 
+            const type = this.order_type;
+            return type === 'outsourcing';
+        }, 'Please enter carrier amount.'],
     },
-    
-    
     totalDistance : { 
         type: Number,
         // required:[true, 'Please enter total distance of this order.'],
@@ -98,7 +104,6 @@ const schema = new mongo.Schema({
         type: Number,
         // required:[true, 'Please enter total distance of this order.'],
     },
-
     revenue_items: [],
     carrier_revenue_items: [],
     revenue_currency:{
@@ -109,7 +114,6 @@ const schema = new mongo.Schema({
         type: String,
         default:"added",
     },
-
     // Notes
     notes : {
         type: String,
@@ -120,7 +124,6 @@ const schema = new mongo.Schema({
     customer_payment_notes : { 
         type: String
     },
-    
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'users' },
     createdAt: {
         type: Date,

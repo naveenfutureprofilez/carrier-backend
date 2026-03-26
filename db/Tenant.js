@@ -86,6 +86,10 @@ const tenantSchema = new mongoose.Schema({
       type: [String],
       required: false,
       default: ['orders', 'customers', 'carriers', 'basic_reporting']
+    },
+    allowedModules: {
+      type: [String],
+      default: ['outsourcing', 'regular']
     }
   },
   settings: {

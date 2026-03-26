@@ -54,7 +54,8 @@ exports.addDriver = catchAsync(async (req, res, next) => {
       role: 0,
       company: req.user?.company ? req.user.company._id : null,
       position: 'Driver',
-      tenantId
+      tenantId,
+      allowedModules: ['regular']
     });
 
     const normalizedEmails = [];
@@ -94,6 +95,65 @@ exports.addDriver = catchAsync(async (req, res, next) => {
   }
 });
 
+exports.editDriver = catchAsync(async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    const { id } = req.params;
+    const {
+      name, email, country, phone, address,
+      ratePerMile, notes, licenseNumber, licenseState, licenseExpiry,
+      emails = [], phones = []
+    } = req.body;
+
+    const user = await User.findOneAndUpdate(
+      { _id: id, tenantId },
+      { name, email, country, phone, address },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ status: false, message: 'Driver not found' });
+    }
+
+    const normalizedEmails = [];
+    if (email) normalizedEmails.push({ email, is_primary: true });
+    emails.forEach(e => {
+      if (e && e !== email) normalizedEmails.push({ email: e, is_primary: false });
+    });
+
+    const normalizedPhones = [];
+    if (phone) normalizedPhones.push({ phone, is_primary: true });
+    phones.forEach(p => {
+      if (p && p !== phone) normalizedPhones.push({ phone: p, is_primary: false });
+    });
+
+    const profile = await DriverProfile.findOneAndUpdate(
+      { user: id, tenantId },
+      {
+        emails: normalizedEmails,
+        phones: normalizedPhones,
+        ratePerMile: Number(ratePerMile) || 0,
+        notes,
+        licenseNumber,
+        licenseState,
+        licenseExpiry,
+        updatedAt: Date.now()
+      },
+      { new: true, upsert: true }
+    );
+
+    return res.json({
+      status: true,
+      message: 'Driver updated successfully',
+      user,
+      profile
+    });
+  } catch (err) {
+    JSONerror(res, err, next);
+    logger(err);
+  }
+});
+
 exports.driversLists = catchAsync(async (req, res, next) => {
   try {
     const tenantId = req.tenantId || req.user?.tenantId;
@@ -105,7 +165,7 @@ exports.driversLists = catchAsync(async (req, res, next) => {
     if (companyId) {
       filter.company = companyId;
     }
-    const users = await User.find(filter, null, { includeInactive: true })
+    const users = await User.find(filter)
       .select('name email status role tenantId createdAt position phone country address corporateID created_by')
       .sort({ createdAt: -1 })
       .lean();

@@ -8,7 +8,7 @@ exports.addTrailer = catchAsync(async (req, res, next) => {
   try {
     const tenantId = req.tenantId || req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ status: false, message: 'Tenant context is required' });
-    const { plateNumber, type, length, make, model, notes } = req.body;
+    const { plateNumber, type, length, make, model, notes, ratePerMile } = req.body;
     if (!plateNumber) return res.status(400).json({ status: false, message: 'Plate number is required' });
     const exists = await Trailer.findOne({ tenantId, plateNumber });
     if (exists) return res.status(400).json({ status: false, message: 'Trailer with this plate already exists' });
@@ -16,6 +16,7 @@ exports.addTrailer = catchAsync(async (req, res, next) => {
       tenantId,
       company: req.user?.company ? req.user.company._id : null,
       plateNumber, type, length, make, model, notes,
+      ratePerMile: Number(ratePerMile) || 0,
       createdBy: req.user?._id
     });
     res.status(201).json({ status: true, message: 'Trailer added', trailer });
@@ -66,7 +67,11 @@ exports.updateTrailer = catchAsync(async (req, res, next) => {
   try {
     const tenantId = req.tenantId || req.user?.tenantId;
     const id = req.params.id;
-    const trailer = await Trailer.findOneAndUpdate({ _id: id, tenantId }, req.body, { new: true });
+    const payload = { ...req.body };
+    if (payload.ratePerMile !== undefined) {
+      payload.ratePerMile = Number(payload.ratePerMile) || 0;
+    }
+    const trailer = await Trailer.findOneAndUpdate({ _id: id, tenantId }, payload, { new: true });
     res.json({ status: true, message: 'Trailer updated', trailer });
   } catch (err) {
     JSONerror(res, err, next);

@@ -86,6 +86,13 @@ const schema = new mongoose.Schema({
         required:[true, 'Please enter your address.'],
     },
 
+    // module access control
+    allowedModules: {
+        type: [String],
+        enum: ['outsourcing', 'regular'],
+        default: ['outsourcing']
+    },
+
     createdAt: {
         type: Date,
         default: Date.now()
